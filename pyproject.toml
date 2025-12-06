@@ -93,6 +93,9 @@ lint.ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports in __init__.py
 
+[tool.ruff.format]
+quote-style = "single"
+
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
