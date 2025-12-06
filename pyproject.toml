@@ -3,7 +3,7 @@ name = "secubot"
 version = "1.0.0"
 description = "Sistema de gamificación verificada para DevSecOps"
 authors = [
-    { name = "Camilo Aguirre", email = "bcamilo.aguirre@udea.edu.co" }
+    { name = "Camilo Aguirre", email = "bcamilo.aguirre@udea.edu.co" },
     { name = "Luis Cruz", email = "jose.cruz1@udea.edu.co" }
 ]
 readme = "README.md"
@@ -33,6 +33,8 @@ dependencies = [
     
     # Utilities
     "python-dateutil>=2.8.2",
+
+    "pymongo",
 ]
 
 [project.optional-dependencies]
