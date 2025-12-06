@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import EmailStr, Field
 
@@ -14,7 +14,7 @@ class User(BaseModelDB):
     """
     Contrato de datos para la entidad User.
 
-    
+
     Campos:
       - user_id: PK (identificador de negocio, string)
       - username
@@ -33,14 +33,14 @@ class User(BaseModelDB):
     display_name: str = Field(..., description='Nombre visible / para mostrar.')
     email: EmailStr = Field(..., description='Correo electrónico validado.')
     role: str = Field(..., description="Rol del usuario (ej. 'admin', 'member').")
-    team_id: Optional[str] = Field(None, description='Referencia a equipo (si aplica).')
+    team_id: str | None = Field(None, description='Referencia a equipo (si aplica).')
     metadata: dict[str, Any] = Field(
         default_factory=dict, description='Objeto libre para datos adicionales.'
     )
     # Campos comunes con defaults (evolución controlada)
     is_active: bool = Field(default=True)
     email_verified: bool = Field(default=False)
-    last_login: Optional[datetime.datetime] = None
+    last_login: datetime.datetime | None = None
 
     class Config:
         # Configuración importante para MongoDB
