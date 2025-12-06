@@ -56,6 +56,12 @@ dev = [
 requires = ["setuptools>=68.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# ⚠️ CRÍTICO: Configuración de paquetes para setuptools
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "config*"]
+exclude = ["tests*", "scripts*", "docs*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

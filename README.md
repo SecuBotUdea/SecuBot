@@ -18,15 +18,15 @@ git clone https://github.com/USERNAME/secubot.git
 cd secubot
 ```
 
-2. **Configurar el proyecto (automático)**
-```bash
-make setup
-```
+2. **Configurar el proyecto**
+pip install -e ".[dev]"
 
-Este comando:
-- Crea el entorno virtual
-- Instala todas las dependencias
-- Copia `.env.example` a `.env`
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+pytest tests/ -v
+
+ruff check app/ tests/
+ruff format app/ tests/
 
 3. **Configurar MongoDB**
 
