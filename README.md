@@ -282,6 +282,8 @@ Este proyecto es parte de un trabajo académico de la Universidad de Antioquia.
 ## 👥 Autores
 
 - Camilo Aguirre - bcamilo.aguirre@udea.edu.co
+- Luis Cruz - jose.cruz1@udea.edu.co
+
 
 ---
 
