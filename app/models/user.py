@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, field_validator
 
 from .base import BaseModelDB
 
@@ -26,21 +26,26 @@ class User(BaseModelDB):
       - created_at / updated_at (heredados de BaseModelDB)
     """
 
-    user_id: str = Field(..., description='Primary business identifier (PK).')
     username: str = Field(
-        ..., min_length=3, description='Nombre de usuario único dentro del sistema.'
+        ..., min_length=3, max_length=50, description='Nombre de usuario único dentro del sistema.'
     )
-    display_name: str = Field(..., description='Nombre visible / para mostrar.')
-    email: EmailStr = Field(..., description='Correo electrónico validado.')
-    role: str = Field(..., description="Rol del usuario (ej. 'admin', 'member').")
-    team_id: str | None = Field(None, description='Referencia a equipo (si aplica).')
+    display_name: str = Field(..., max_length=100, description='Nombre visible / para mostrar.')
+    email: EmailStr = Field(...,  description='Correo electrónico validado.')
+    role: str = Field(..., default="member", description="Rol del usuario (ej. 'admin', 'member').")
+    team_id: str | None = Field(None,description='Referencia a equipo (si aplica).')
     metadata: dict[str, Any] = Field(
         default_factory=dict, description='Objeto libre para datos adicionales.'
     )
     # Campos comunes con defaults (evolución controlada)
     is_active: bool = Field(default=True)
-    email_verified: bool = Field(default=False)
-    last_login: datetime.datetime | None = None
+
+    # Validador de roles
+    @field_validator('role')
+    def validate_role(cls, v):
+        valid_roles = ['super_admin', 'admin', 'member', 'viewer', 'auditor']
+        if v not in valid_roles:
+            raise ValueError(f'Rol debe ser uno de: {valid_roles}')
+        return v
 
     class Config:
         # Configuración importante para MongoDB

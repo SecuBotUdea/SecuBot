@@ -1,12 +1,16 @@
 # database/migrations/runner.py
 import importlib
+import sys
 from datetime import datetime
 from pathlib import Path
+
+# AÑADIR ESTO AL INICIO para que Python encuentre los módulos
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def run_migrations():
     """Ejecuta todas las migraciones pendientes"""
-    from database.connection import get_database
+    from app.database.connection import get_database  # ← ajustado
 
     db = get_database()
 
@@ -29,7 +33,7 @@ def run_migrations():
 
         # Verificar si ya se aplicó
         if db.migration_history.find_one({"name": migration_name}):
-            print(f"⏭️  Saltando: {migration_name} (ya aplicada)")
+            print(f"⏭Saltando: {migration_name} (ya aplicada)")
             continue
 
         print(f"Aplicando: {migration_name}")

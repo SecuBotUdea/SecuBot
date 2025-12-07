@@ -16,3 +16,4 @@ def get_database():
     )
     db_name = os.getenv("DATABASE_NAME", "secubot_dev")
     return client[db_name]
+
