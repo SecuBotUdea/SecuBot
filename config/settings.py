@@ -104,14 +104,13 @@ class Settings(BaseSettings):
     # ============================================
     # CORS
     # ============================================
-    allowed_origins: list[str] = Field(default=['http://localhost:3000', 'http://localhost:8080'])
+    allowed_origins: str = Field(default='http://localhost:3000,http://localhost:8080')
 
-    @field_validator('allowed_origins', mode='before')
-    @classmethod
-    def parse_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
-        return v
+    def get_allowed_origins(self) -> list[str]:
+        """Parse allowed origins from CSV string"""
+        if isinstance(self.allowed_origins, str):
+            return [origin.strip() for origin in self.allowed_origins.split(',')]
+        return self.allowed_origins
 
     # ============================================
     # Rate Limiting (futuro)
