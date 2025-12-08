@@ -1,4 +1,4 @@
-# database/migrations/runner.py
+# database/migrations/migrate.py
 import importlib
 import sys
 from datetime import datetime

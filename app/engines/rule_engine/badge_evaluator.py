@@ -185,6 +185,7 @@ class BadgeEvaluator:
         
         # Determinar colección
         collection = self._get_collection(entity)
+        assert collection is not None
         
         # Ejecutar count
         count = await collection.count_documents(query)
@@ -216,6 +217,7 @@ class BadgeEvaluator:
         # Construir query base
         base_query = self._build_query_from_filters(filters, user_id, team_id)
         collection = self._get_collection(entity)
+        assert collection is not None
         
         # Verificar últimos N días consecutivos
         today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
