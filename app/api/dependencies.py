@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
+
 """
 API Dependencies - Reusable dependency functions for FastAPI endpoints
 """
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from fastapi import Query
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 from app.schemas.common_schemas import PaginationParams
 
 

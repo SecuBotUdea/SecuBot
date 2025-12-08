@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 """
 Alerts API Router - CRUD operations for security alerts
 """
