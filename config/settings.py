@@ -34,9 +34,8 @@ class Settings(BaseSettings):
     # ============================================
     # MongoDB Settings
     # ============================================
-    mongodb_uri: str = Field(
-        default='mongodb://localhost:27017', description='MongoDB connection URI'
-    )
+    mongodb_uri: str = Field(..., env="MONGODB_URI")
+
     database_name: str = Field(default='secubot_dev')
 
     @field_validator('mongodb_uri')
