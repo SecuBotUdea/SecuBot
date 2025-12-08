@@ -1,5 +1,5 @@
 # database/migrations/versions/001_initial_setup.py
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def upgrade(db):
@@ -42,8 +42,8 @@ def upgrade(db):
                 "notes": "Usuario administrador inicial"
             },
             "is_active": True,
-            "created_at": datetime.now(datetime.timezone.utc),
-            "updated_at": datetime.now(datetime.timezone.utc),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             # schema_version viene de BaseModelDB (si lo incluyes)
         }
 
@@ -77,8 +77,8 @@ def upgrade(db):
             "session_timeout_minutes": 30,
             "require_2fa": False,
             "password_min_length": 8,
-            "created_at": datetime.now(datetime.timezone.utc),
-            "updated_at": datetime.now(datetime.timezone.utc)
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
         })
 
         db.system_configs.insert_one({
@@ -86,7 +86,7 @@ def upgrade(db):
             "name": "Configuración de Auditoría",
             "log_retention_days": 90,
             "log_sensitive_data": False,
-            "created_at": datetime.now(datetime.timezone.utc)
+            "created_at": datetime.now(timezone.utc)
         })
 
         print("Configuraciones del sistema creadas")
@@ -103,7 +103,7 @@ def upgrade(db):
             "_id": "default_team",
             "name": "Equipo Principal",
             "description": "Equipo por defecto del sistema",
-            "created_at": datetime.now(datetime.timezone.utc)
+            "created_at": datetime.now(timezone.utc)
         })
 
         print("Colección de equipos creada")
