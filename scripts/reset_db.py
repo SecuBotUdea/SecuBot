@@ -8,68 +8,73 @@ import asyncio
 import os
 import sys
 
-from motor.motor_asyncio import AsyncIOMotorClient
-
-# Agregar el directorio raíz al path
+# Agregar el directorio raíz al path para importar módulos de la app
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from app.database.mongodb import init_db_connection, get_database, close_db_connection
 from config.settings import settings
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 async def reset_database():
     """
-    Elimina todas las colecciones de la base de datos
+    Elimina todas las colecciones de la base de datos de forma dinámica.
     """
     # Verificar que no estamos en producción
     if settings.environment.lower() == "production":
-        print("❌ ERROR: No puedes resetear la base de datos en producción!")
-        print("   Cambia ENVIRONMENT en .env a 'development' o 'testing'")
+        logger.error("❌ ERROR: No puedes resetear la base de datos en producción!")
+        logger.error("   Cambia ENVIRONMENT en .env a 'development' o 'testing'")
         return
 
-    print("⚠️  WARNING: Esto eliminará TODOS los datos de la base de datos")
-    print(f"   Database: {settings.database_name}")
-    print(f"   Environment: {settings.environment}")
+    logger.warning("⚠️  WARNING: Esto eliminará TODOS los datos de la base de datos")
+    logger.warning(f"   Database: {settings.database_name}")
+    logger.warning(f"   Environment: {settings.environment}")
 
-    # Pedir confirmación
+    # Pedir confirmación robusta
     response = input("\n¿Estás seguro? Escribe 'DELETE' para confirmar: ")
 
     if response != "DELETE":
-        print("❌ Operación cancelada")
+        logger.error("❌ Operación cancelada")
         return
 
-    print("\n🗑️  Reseteando database...")
+    logger.info("\n🗑️  Reseteando database...")
 
-    # Conectar a MongoDB
-    client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client[settings.database_name]
-
+    client = None  # Inicializar client para que exista en el bloque finally
     try:
-        # Obtener todas las colecciones
+        # Inicializar conexión usando la lógica de la aplicación
+        await init_db_connection()
+        db = get_database()
+
+        # Obtener todas las colecciones de forma dinámica
         collections = await db.list_collection_names()
 
         if not collections:
-            print("No hay colecciones para eliminar")
+            logger.info("No hay colecciones para eliminar.")
             return
 
-        print(f"\nColecciones a eliminar: {', '.join(collections)}")
+        logger.warning(f"\nColecciones a eliminar: {', '.join(collections)}")
 
         # Eliminar cada colección
         for collection_name in collections:
             await db[collection_name].drop()
-            print(f"  ✅ Eliminada: {collection_name}")
+            logger.info(f"  ✅ Eliminada: {collection_name}")
 
-        print("\n" + "="*50)
-        print("Database reseteada exitosamente!")
-        print("="*50)
-        print("\nPróximos pasos:")
-        print("  1. Ejecuta: python scripts/seed_db.py")
-        print("  2. O inicia la API: make dev")
+        logger.info("\n" + "="*50)
+        logger.info("🎉 Database reseteada exitosamente!")
+        logger.info("="*50)
+        logger.info("\nPróximos pasos:")
+        logger.info("  1. Ejecuta: python scripts/seed_db.py")
+        logger.info("  2. O inicia la API: make dev o uvicorn app.main:app --reload")
 
     except Exception as e:
-        print(f"\nError reseteando database: {e}")
+        logger.error(f"\n❌ Error reseteando database: {e}")
         raise
     finally:
-        client.close()
+        # Asegurarse de cerrar la conexión
+        if client:
+            await close_db_connection()
 
 
 if __name__ == "__main__":
