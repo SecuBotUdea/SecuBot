@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def run_migrations():
     """Ejecuta todas las migraciones pendientes"""
-    from app.database.connection import get_database  # ← ajustado
+    from app.database.mongodb import get_database  # ← ajustado
 
     db = get_database()
 
