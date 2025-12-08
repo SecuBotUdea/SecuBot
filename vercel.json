@@ -17,15 +17,9 @@
     }
   ],
   "env": {
-    "MONGODB_URI": "@mongodb_uri",
-    "DATABASE_NAME": "@database_name",
+    "MONGODB_URI": "MONGODB_URI",
+    "DATABASE_NAME": "DATABASE_NAME",
     "ENVIRONMENT": "production",
     "DEBUG": "false"
-  },
-  "functions": {
-    "app/main.py": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
   }
 }
