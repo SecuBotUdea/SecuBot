@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import alerts, notifications, remediations, users
 from app.database.indexes import create_indexes
-from app.database.mongodb import close_db_connection, init_db_connection
+from app.database.mongodb import close_mongo_connection, connect_to_mongo
 from config.settings import settings
 
 
@@ -20,11 +20,11 @@ from config.settings import settings
 async def lifespan(app: FastAPI):
     """Lifecycle events: startup and shutdown"""
     # Startup
-    await init_db_connection()
+    await connect_to_mongo()
     await create_indexes()
     yield
     # Shutdown
-    await close_db_connection()
+    await close_mongo_connection()
 
 # Create FastAPI app
 app = FastAPI(
