@@ -1,287 +1,282 @@
+# -*- coding: utf-8 -*-
 """
-Seed Database Script
-Carga datos de prueba en MongoDB para demo/testing
+Seed Database Script - Populate MongoDB with sample data
+Run: python -m scripts.seed_db
 """
 
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta
 
-from motor.motor_asyncio import AsyncIOMotorClient
+from app.database.mongodb import init_db_connection, get_database, close_db_connection
+from app.utils.logger import get_logger
 
-# Agregar el directorio raíz al path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from config.settings import settings
+logger = get_logger(__name__)
 
 
 async def seed_database():
-    """
-    Carga datos de prueba en la base de datos
-    """
-    print("🌱 Seeding database...")
-    
-    # Conectar a MongoDB
-    client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client[settings.database_name]
-    
+    """Populate database with sample data for testing"""
+
     try:
-        # ==========================================
-        # 1. USERS
-        # ==========================================
-        print("\n👥 Creando usuarios...")
-        
+        # Initialize database connection
+        await init_db_connection()
+        db = get_database()
+
+        logger.info('Starting database seeding...')
+
+        # ============================================
+        # USERS
+        # ============================================
+        logger.info('Creating users...')
+
         users = [
             {
-                "user_id": "user_1",
-                "username": "alice_dev",
-                "email": "alice@example.com",
-                "full_name": "Alice Developer",
-                "created_at": datetime.utcnow(),
-                "is_active": True
+                'user_id': 'U001',
+                'username': 'alice_dev',
+                'email': 'alice@example.com',
+                'slack_id': 'U12345678',
+                'team_id': 'team-alpha',
+                'role': 'developer',
+                'is_active': True,
+                'total_points': 250,
+                'level': 2,
+                'created_at': datetime.utcnow() - timedelta(days=30),
+                'updated_at': datetime.utcnow(),
             },
             {
-                "user_id": "user_2",
-                "username": "bob_sec",
-                "email": "bob@example.com",
-                "full_name": "Bob Security",
-                "created_at": datetime.utcnow(),
-                "is_active": True
+                'user_id': 'U002',
+                'username': 'bob_security',
+                'email': 'bob@example.com',
+                'slack_id': 'U87654321',
+                'team_id': 'team-alpha',
+                'role': 'security',
+                'is_active': True,
+                'total_points': 500,
+                'level': 3,
+                'created_at': datetime.utcnow() - timedelta(days=60),
+                'updated_at': datetime.utcnow(),
             },
-            {
-                "user_id": "user_3",
-                "username": "charlie_ops",
-                "email": "charlie@example.com",
-                "full_name": "Charlie DevOps",
-                "created_at": datetime.utcnow(),
-                "is_active": True
-            }
         ]
-        
+
         result = await db.users.insert_many(users)
-        print(f"✅ Creados {len(result.inserted_ids)} usuarios")
-        
-        # ==========================================
-        # 2. ALERTS
-        # ==========================================
-        print("\n🚨 Creando alertas...")
-        
-        now = datetime.utcnow()
-        
+        logger.info(f'Created {len(result.inserted_ids)} users')
+
+        # ============================================
+        # ALERTS
+        # ============================================
+        logger.info('Creating alerts...')
+
         alerts = [
             {
-                "alert_id": "alert_1",
-                "signature": "dependabot_django_cve-2023-1234",
-                "source_id": "dependabot",
-                "severity": "CRITICAL",
-                "component": "django@2.2.0",
-                "status": "open",
-                "first_seen": now - timedelta(days=3),
-                "last_seen": now - timedelta(days=3),
-                "quality": "high",
-                "normalized_payload": {
-                    "cve_id": "CVE-2023-1234",
-                    "description": "SQL Injection vulnerability in Django",
-                    "affected_versions": ["<2.2.28"],
-                    "fixed_version": "2.2.28"
+                'alert_id': 'ALT-001',
+                'signature': 'CVE-2024-1234-nodejs-express',
+                'source_id': 'dependabot',
+                'severity': 'CRITICAL',
+                'component': 'express',
+                'status': 'verified',
+                'first_seen': datetime.utcnow() - timedelta(days=5),
+                'last_seen': datetime.utcnow() - timedelta(days=5),
+                'quality': 'high',
+                'normalized_payload': {
+                    'title': 'SQL Injection in Express middleware',
+                    'description': 'Unvalidated user input in query parameters',
+                    'cvss_score': 9.8,
+                    'cwe': 'CWE-89',
+                    'affected_version': '4.17.1',
+                    'fixed_version': '4.18.0',
                 },
-                "lifecycle_history": [
-                    {
-                        "status": "open",
-                        "timestamp": now - timedelta(days=3),
-                        "triggered_by": "system"
-                    }
-                ],
-                "reopen_count": 0,
-                "version": 1
+                'created_at': datetime.utcnow() - timedelta(days=5),
+                'updated_at': datetime.utcnow() - timedelta(days=2),
             },
             {
-                "alert_id": "alert_2",
-                "signature": "trivy_express_cve-2023-5678",
-                "source_id": "trivy",
-                "severity": "HIGH",
-                "component": "express@4.17.1",
-                "status": "open",
-                "first_seen": now - timedelta(days=2),
-                "last_seen": now - timedelta(days=2),
-                "quality": "high",
-                "normalized_payload": {
-                    "cve_id": "CVE-2023-5678",
-                    "description": "Path traversal in Express.js",
-                    "affected_versions": ["<4.18.0"],
-                    "fixed_version": "4.18.0"
+                'alert_id': 'ALT-002',
+                'signature': 'CVE-2024-5678-lodash',
+                'source_id': 'trivy',
+                'severity': 'HIGH',
+                'component': 'lodash',
+                'status': 'failed',
+                'first_seen': datetime.utcnow() - timedelta(days=3),
+                'last_seen': datetime.utcnow() - timedelta(hours=6),
+                'quality': 'high',
+                'normalized_payload': {
+                    'title': 'Prototype Pollution in lodash',
+                    'description': 'Prototype pollution vulnerability in merge function',
+                    'cvss_score': 7.5,
+                    'cwe': 'CWE-1321',
+                    'affected_version': '4.17.20',
+                    'fixed_version': '4.17.21',
                 },
-                "lifecycle_history": [
-                    {
-                        "status": "open",
-                        "timestamp": now - timedelta(days=2),
-                        "triggered_by": "system"
-                    }
-                ],
-                "reopen_count": 0,
-                "version": 1
+                'reopen_count': 1,
+                'last_reopened_at': datetime.utcnow() - timedelta(hours=6),
+                'created_at': datetime.utcnow() - timedelta(days=3),
+                'updated_at': datetime.utcnow() - timedelta(hours=6),
             },
             {
-                "alert_id": "alert_3",
-                "signature": "zap_xss_homepage",
-                "source_id": "zap",
-                "severity": "MEDIUM",
-                "component": "homepage.html",
-                "status": "verified_resolved",
-                "first_seen": now - timedelta(days=5),
-                "last_seen": now - timedelta(days=5),
-                "quality": "medium",
-                "normalized_payload": {
-                    "vulnerability_type": "XSS",
-                    "description": "Reflected XSS in search parameter",
-                    "location": "/search?q=",
-                    "confidence": "medium"
+                'alert_id': 'ALT-003',
+                'signature': 'XSS-login-page',
+                'source_id': 'owasp_zap',
+                'severity': 'MEDIUM',
+                'component': 'auth-frontend',
+                'status': 'open',
+                'first_seen': datetime.utcnow() - timedelta(days=1),
+                'last_seen': datetime.utcnow() - timedelta(days=1),
+                'quality': 'medium',
+                'normalized_payload': {
+                    'title': 'Reflected XSS in login page',
+                    'description': 'User input reflected without sanitization',
+                    'cvss_score': 6.1,
+                    'cwe': 'CWE-79',
+                    'url': 'https://app.example.com/login',
                 },
-                "lifecycle_history": [
-                    {
-                        "status": "open",
-                        "timestamp": now - timedelta(days=5),
-                        "triggered_by": "system"
-                    },
-                    {
-                        "status": "pending_verification",
-                        "timestamp": now - timedelta(days=4),
-                        "triggered_by": "user_1"
-                    },
-                    {
-                        "status": "verified_resolved",
-                        "timestamp": now - timedelta(days=4, hours=2),
-                        "triggered_by": "system"
-                    }
-                ],
-                "reopen_count": 0,
-                "version": 1
-            }
+                'created_at': datetime.utcnow() - timedelta(days=1),
+                'updated_at': datetime.utcnow() - timedelta(days=1),
+            },
+            {
+                'alert_id': 'ALT-004',
+                'signature': 'missing-rate-limit-api',
+                'source_id': 'owasp_zap',
+                'severity': 'LOW',
+                'component': 'api-gateway',
+                'status': 'pending',
+                'first_seen': datetime.utcnow() - timedelta(hours=12),
+                'last_seen': datetime.utcnow() - timedelta(hours=12),
+                'quality': 'low',
+                'normalized_payload': {
+                    'title': 'Missing rate limiting on API endpoints',
+                    'description': 'API endpoints do not implement rate limiting',
+                    'cvss_score': 3.7,
+                },
+                'created_at': datetime.utcnow() - timedelta(hours=12),
+                'updated_at': datetime.utcnow() - timedelta(hours=12),
+            },
+            {
+                'alert_id': 'ALT-005',
+                'signature': 'outdated-python-version',
+                'source_id': 'trivy',
+                'severity': 'INFO',
+                'component': 'base-image',
+                'status': 'ignored',
+                'first_seen': datetime.utcnow() - timedelta(days=7),
+                'last_seen': datetime.utcnow() - timedelta(days=7),
+                'quality': 'medium',
+                'normalized_payload': {
+                    'title': 'Python version 3.9 is outdated',
+                    'description': 'Consider upgrading to Python 3.11+',
+                },
+                'created_at': datetime.utcnow() - timedelta(days=7),
+                'updated_at': datetime.utcnow() - timedelta(days=7),
+            },
         ]
-        
+
         result = await db.alerts.insert_many(alerts)
-        print(f"✅ Creadas {len(result.inserted_ids)} alertas")
-        
-        # ==========================================
-        # 3. REMEDIATIONS
-        # ==========================================
-        print("\n🔧 Creando remediaciones...")
-        
+        logger.info(f'Created {len(result.inserted_ids)} alerts')
+
+        # ============================================
+        # REMEDIATIONS
+        # ============================================
+        logger.info('Creating remediations...')
+
         remediations = [
             {
-                "remediation_id": "rem_1",
-                "alert_id": "alert_3",
-                "user_id": "user_1",
-                "status": "verified",
-                "created_at": now - timedelta(days=4),
-                "resolved_at": now - timedelta(days=4),
-                "verified_at": now - timedelta(days=4, hours=2),
-                "description": "Implemented input sanitization",
-                "evidence_refs": ["commit_abc123"]
-            }
-        ]
-        
-        result = await db.remediations.insert_many(remediations)
-        print(f"✅ Creadas {len(result.inserted_ids)} remediaciones")
-        
-        # ==========================================
-        # 4. POINT TRANSACTIONS
-        # ==========================================
-        print("\n💰 Creando transacciones de puntos...")
-        
-        point_transactions = [
-            {
-                "txn_id": "txn_1",
-                "user_id": "user_1",
-                "points": 50,
-                "rule_id": "PTS-001",
-                "reason": "Remediación verificada: alert_3",
-                "timestamp": now - timedelta(days=4, hours=2),
-                "evidence_refs": {
-                    "alert_id": "alert_3",
-                    "remediation_id": "rem_1"
+                'remediation_id': 'REM-001',
+                'alert_id': 'ALT-001',
+                'user_id': 'U001',
+                'team_id': 'team-alpha',
+                'type': 'user_mark',
+                'action_ts': datetime.utcnow() - timedelta(days=3),
+                'status': 'verified',
+                'details': {
+                    'commit_sha': 'abc123def456',
+                    'pr_url': 'https://github.com/org/repo/pull/42',
                 },
-                "metadata": {
-                    "severity": "MEDIUM",
-                    "speed_bonus": False
-                }
+                'verified_at': datetime.utcnow() - timedelta(days=2),
+                'created_at': datetime.utcnow() - timedelta(days=3),
+                'updated_at': datetime.utcnow() - timedelta(days=2),
             },
             {
-                "txn_id": "txn_2",
-                "user_id": "user_2",
-                "points": 100,
-                "rule_id": "PTS-001",
-                "reason": "Remediación verificada (ejemplo)",
-                "timestamp": now - timedelta(days=3),
-                "evidence_refs": {},
-                "metadata": {
-                    "severity": "HIGH",
-                    "speed_bonus": False
-                }
+                'remediation_id': 'REM-002',
+                'alert_id': 'ALT-002',
+                'user_id': 'U002',
+                'team_id': 'team-alpha',
+                'type': 'user_mark',
+                'action_ts': datetime.utcnow() - timedelta(days=1),
+                'status': 'failed',
+                'details': {
+                    'commit_sha': 'xyz789abc012',
+                    'pr_url': 'https://github.com/org/repo/pull/43',
+                },
+                'verified_at': datetime.utcnow() - timedelta(hours=6),
+                'failure_reason': 'Vulnerability still detected in rescan',
+                'created_at': datetime.utcnow() - timedelta(days=1),
+                'updated_at': datetime.utcnow() - timedelta(hours=6),
+            },
+        ]
+
+        result = await db.remediations.insert_many(remediations)
+        logger.info(f'Created {len(result.inserted_ids)} remediations')
+
+        # ============================================
+        # POINT TRANSACTIONS
+        # ============================================
+        logger.info('Creating point transactions...')
+
+        transactions = [
+            {
+                'user_id': 'U001',
+                'points': 100,
+                'reason': 'Verified remediation for CRITICAL alert',
+                'alert_id': 'ALT-001',
+                'remediation_id': 'REM-001',
+                'multiplier': 1.0,
+                'created_at': datetime.utcnow() - timedelta(days=2),
             },
             {
-                "txn_id": "txn_3",
-                "user_id": "user_3",
-                "points": 75,
-                "rule_id": "PTS-001",
-                "reason": "Remediación verificada (ejemplo)",
-                "timestamp": now - timedelta(days=2),
-                "evidence_refs": {},
-                "metadata": {
-                    "severity": "MEDIUM",
-                    "speed_bonus": True
-                }
-            }
-        ]
-        
-        result = await db.point_transactions.insert_many(point_transactions)
-        print(f"✅ Creadas {len(result.inserted_ids)} transacciones")
-        
-        # ==========================================
-        # 5. RESCAN RESULTS
-        # ==========================================
-        print("\n🔍 Creando resultados de rescan...")
-        
-        rescan_results = [
+                'user_id': 'U001',
+                'points': 50,
+                'reason': 'Speed bonus for quick remediation (<24h)',
+                'alert_id': 'ALT-001',
+                'remediation_id': 'REM-001',
+                'multiplier': 1.5,
+                'created_at': datetime.utcnow() - timedelta(days=2),
+            },
             {
-                "rescan_id": "rescan_1",
-                "alert_id": "alert_3",
-                "remediation_id": "rem_1",
-                "executed_at": now - timedelta(days=4, hours=2),
-                "present": False,
-                "scan_output": "No vulnerability found",
-                "status": "completed"
-            }
+                'user_id': 'U002',
+                'points': -25,
+                'reason': 'Penalty for failed remediation verification',
+                'alert_id': 'ALT-002',
+                'remediation_id': 'REM-002',
+                'multiplier': 1.0,
+                'created_at': datetime.utcnow() - timedelta(hours=6),
+            },
         ]
-        
-        result = await db.rescan_results.insert_many(rescan_results)
-        print(f"✅ Creados {len(result.inserted_ids)} resultados de rescan")
-        
-        # ==========================================
-        # Summary
-        # ==========================================
-        print("\n" + "="*50)
-        print("🎉 Database seeded successfully!")
-        print("="*50)
-        print("\n📊 Resumen:")
-        print("  👥 Usuarios: 3")
-        print("  🚨 Alertas: 3 (1 resuelta, 2 abiertas)")
-        print("  🔧 Remediaciones: 1")
-        print("  💰 Transacciones: 3")
-        print("  🔍 Rescans: 1")
-        print("\n🔗 Leaderboard:")
-        print("  1. bob_sec: 100 pts")
-        print("  2. charlie_ops: 75 pts")
-        print("  3. alice_dev: 50 pts")
-        print("\n✅ Puedes iniciar la API: make dev")
-        
+
+        result = await db.point_transactions.insert_many(transactions)
+        logger.info(f'Created {len(result.inserted_ids)} point transactions')
+
+        # ============================================
+        # SUMMARY
+        # ============================================
+        logger.info('\n' + '='*60)
+        logger.info('Database seeding completed successfully!')
+        logger.info('='*60)
+        logger.info(f'Users created: 2')
+        logger.info(f'Alerts created: 5')
+        logger.info(f'  - CRITICAL: 1 (verified)')
+        logger.info(f'  - HIGH: 1 (failed)')
+        logger.info(f'  - MEDIUM: 1 (open)')
+        logger.info(f'  - LOW: 1 (pending)')
+        logger.info(f'  - INFO: 1 (ignored)')
+        logger.info(f'Remediations created: 2 (1 verified, 1 failed)')
+        logger.info(f'Point transactions: 3 (+100, +50, -25)')
+        logger.info('='*60)
+
     except Exception as e:
-        print(f"\n❌ Error seeding database: {e}")
+        logger.error(f'Error seeding database: {type(e).__name__}: {e}')
         raise
+
     finally:
-        client.close()
+        # Close connection
+        await close_db_connection()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(seed_database())
