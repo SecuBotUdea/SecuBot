@@ -58,7 +58,7 @@ class BadgeEvaluator:
         
         # Si no se pasan badge_rules, obtenerlas del RuleLoader
         if badge_rules is None:
-            from app.engines.rule_engine.rule_loader import get_rule_loader
+            from app.engines.rule_engine.loader import get_rule_loader
             loader = get_rule_loader()
             badge_rules = loader.get_all_active_badges()
         

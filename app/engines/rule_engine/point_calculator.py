@@ -8,7 +8,8 @@ Responsabilidades:
 - Validar que los puntos no caigan por debajo del mínimo configurado
 """
 
-from typing import Optional
+
+from typing import Any
 
 
 class PointCalculator:
@@ -137,7 +138,7 @@ class PointCalculator:
             return 5  # Maestro de la Seguridad
     
     @staticmethod
-    def get_level_info(level: int) -> dict:
+    def get_level_info(level: int) -> dict[str, Any]:
         """
         Obtiene información completa de un nivel
         
@@ -147,7 +148,7 @@ class PointCalculator:
         Returns:
             Dict con name, min_points, max_points, perks
         """
-        levels = {
+        levels: dict[int, dict[str, Any]] = {
             1: {
                 "name": "Aprendiz de Seguridad",
                 "min_points": 0,
@@ -195,7 +196,7 @@ class PointCalculator:
         return levels.get(level, levels[1])
     
     @staticmethod
-    def calculate_progress_to_next_level(current_points: int) -> dict:
+    def calculate_progress_to_next_level(current_points: int) -> dict[str, Any]:
         """
         Calcula el progreso hacia el siguiente nivel
         

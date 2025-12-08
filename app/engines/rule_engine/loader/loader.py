@@ -97,6 +97,7 @@ class RuleLoader:
             rule_type: "points", "penalty", "exclusion", "badge"
         """
         self._ensure_loaded()
+        assert self._rules_doc is not None
 
         if rule_type == 'points':
             return [r for r in self._rules_doc.point_rules if r.active]
@@ -117,6 +118,7 @@ class RuleLoader:
             event: "rescan_completed", "grace_period_expired", etc.
         """
         self._ensure_loaded()
+        assert self._rules_doc is not None
 
         matching_rules = []
 
@@ -135,11 +137,13 @@ class RuleLoader:
     def get_config(self) -> RulesConfig:
         """Obtiene configuración global"""
         self._ensure_loaded()
+        assert self._rules_doc is not None
         return self._rules_doc.config
 
     def get_all_active_badges(self) -> list[BadgeRule]:
         """Obtiene todos los badges activos"""
         self._ensure_loaded()
+        assert self._rules_doc is not None
         return [b for b in self._rules_doc.badge_rules if b.active]
 
     def reload(self) -> None:

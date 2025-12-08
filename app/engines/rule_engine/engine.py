@@ -11,10 +11,10 @@ Responsabilidades:
 Este es el corazón del sistema de gamificación verificada.
 """
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Set
 
-from app.engines.rule_engine.rule_loader import RuleLoader, get_rule_loader
+from app.engines.rule_engine.loader import RuleLoader, get_rule_loader
 from app.engines.rule_engine.condition_evaluator import ConditionEvaluator
 from app.engines.rule_engine.action_executor import ActionExecutor
 from app.engines.rule_engine.point_calculator import PointCalculator
@@ -84,7 +84,7 @@ class RuleEngine:
                     "exclusions": List[dict]
                 }
         """
-        results = {
+        results: Dict[str, Any] = {
             "event_name": event_name,
             "rules_evaluated": 0,
             "rules_triggered": 0,
@@ -98,7 +98,7 @@ class RuleEngine:
         if self._should_exclude(context):
             results["exclusions"].append({
                 "reason": "Event excluded by exclusion rules",
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             })
             return results
         
@@ -117,7 +117,7 @@ class RuleEngine:
         
         # Fase 4: Evaluar badges si hubo cambios en puntos
         if results["points_awarded"] or results["penalties_applied"]:
-            user_ids = set()
+            user_ids: Set[str] = set()
             
             for award in results["points_awarded"]:
                 if "user_id" in award:

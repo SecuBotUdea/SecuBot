@@ -271,7 +271,7 @@ class ActionExecutor:
             "inserted": bool(result.inserted_id)
         }
     
-    def _resolve_evidence(
+    def _resolve_evidence (
         self,
         evidence_list: List[str],
         context: Dict[str, Any]
@@ -295,7 +295,7 @@ class ActionExecutor:
         
         return resolved
     
-    def _resolve_value(self, expr: str, context: Dict[str, Any]) -> Any:
+    def _resolve_value(self, expr: Any, context: Dict[str, Any]) -> Any:
         """
         Resuelve un valor desde el contexto
         Similar a ConditionEvaluator._resolve_reference
