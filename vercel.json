@@ -17,9 +17,9 @@
     }
   ],
   "env": {
-    "MONGODB_URI": "MONGODB_URI",
-    "DATABASE_NAME": "DATABASE_NAME",
-    "ENVIRONMENT": "production",
-    "DEBUG": "false"
+    "MONGODB_URI": "@mongodb_uri",
+    "DATABASE_NAME": "@database_name",
+    "ENVIRONMENT": "@environment",
+    "DEBUG": "@debug"
   }
 }
