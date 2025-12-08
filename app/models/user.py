@@ -41,6 +41,7 @@ class User(BaseModelDB):
 
     # Validador de roles
     @field_validator('role')
+    @classmethod
     def validate_role(cls, v):
         valid_roles = ['super_admin', 'admin', 'member', 'viewer', 'auditor']
         if v not in valid_roles:
@@ -49,7 +50,7 @@ class User(BaseModelDB):
 
     class Config:
         # Configuración importante para MongoDB
-        allow_population_by_field_name = True  # Permite cargar por _id
+        populate_by_name = True  # Permite cargar por _id
         json_encoders = {
             datetime: lambda v: v.isoformat()  # Serialización para MongoDB
         }

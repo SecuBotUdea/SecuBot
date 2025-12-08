@@ -19,6 +19,7 @@ dependencies = [
     
     # Data Validation & Settings
     "pydantic>=2.5.0",
+    "pydantic[email]>=2.5.0",
     "pydantic-settings>=2.1.0",
     "python-dotenv>=1.0.0",
     
