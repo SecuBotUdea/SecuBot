@@ -1,709 +1,709 @@
-# ============================================================================
-# SECUBOT - SISTEMA DE GAMIFICACIÓN VERIFICADA
-# Reglas de Negocio para Puntos, Badges y Misiones de Equipo
-# Versión: 1.0.0
-# ============================================================================
+  # ============================================================================
+  # SECUBOT - SISTEMA DE GAMIFICACIÓN VERIFICADA
+  # Reglas de Negocio para Puntos, Badges y Misiones de Equipo
+  # Versión: 1.0.0
+  # ============================================================================
 
-# ----------------------------------------------------------------------------
-# CONFIGURACIÓN GLOBAL
-# ----------------------------------------------------------------------------
-config:
-  version: "1.0.0"
-  point_system:
-    currency_name: "SecuPoints"
-    min_points: 0
-    allow_negative: true  # Permitir penalizaciones
-  
-  verification:
-    grace_period_hours: 72  # Tiempo para verificar antes de penalizar
-    auto_rescan_delay_minutes: 30  # Espera antes de rescan automático
-  
-  quality_filter:
-    exclude_low_quality: true  # No gamificar alertas de baja calidad
-    minimum_quality: "medium"
-
-# ----------------------------------------------------------------------------
-# REGLAS DE PUNTOS POR REMEDIACIÓN VERIFICADA
-# ----------------------------------------------------------------------------
-point_rules:
-  
-  # REGLA CORE: Puntos por Severidad Verificada
-  - rule_id: "PTS-001"
-    name: "Remediación Verificada - Critical"
-    type: "points"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "rescan_completed"
-      conditions:
-        - "RescanResult.present == false"
-        - "Alert.severity == 'CRITICAL'"
-        - "Alert.quality IN ['high', 'medium']"
-        - "Alert.status == 'pending_verification'"
-        - "Remediation.type == 'user_mark'"
-    
-    action:
-      points: 100
-      target: "individual"  # individual | team | both
-      recipient: "Remediation.user_id"
-      reason: "Vulnerabilidad CRÍTICA verificada como resuelta"
-      evidence:
-        - "RescanResult.rescan_id"
-        - "Alert.alert_id"
-        - "Remediation.remediation_id"
-    
-    metadata:
-      category: "remediation"
-      subcategory: "verified"
-      severity_level: "critical"
-
-  - rule_id: "PTS-002"
-    name: "Remediación Verificada - High"
-    type: "points"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "rescan_completed"
-      conditions:
-        - "RescanResult.present == false"
-        - "Alert.severity == 'HIGH'"
-        - "Alert.quality IN ['high', 'medium']"
-        - "Alert.status == 'pending_verification'"
-        - "Remediation.type == 'user_mark'"
-    
-    action:
-      points: 50
-      target: "individual"
-      recipient: "Remediation.user_id"
-      reason: "Vulnerabilidad HIGH verificada como resuelta"
-      evidence:
-        - "RescanResult.rescan_id"
-        - "Alert.alert_id"
-        - "Remediation.remediation_id"
-
-  - rule_id: "PTS-003"
-    name: "Remediación Verificada - Medium"
-    type: "points"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "rescan_completed"
-      conditions:
-        - "RescanResult.present == false"
-        - "Alert.severity == 'MEDIUM'"
-        - "Alert.quality IN ['high', 'medium']"
-        - "Alert.status == 'pending_verification'"
-        - "Remediation.type == 'user_mark'"
-    
-    action:
-      points: 20
-      target: "individual"
-      recipient: "Remediation.user_id"
-      reason: "Vulnerabilidad MEDIUM verificada como resuelta"
-      evidence:
-        - "RescanResult.rescan_id"
-        - "Alert.alert_id"
-
-  # Bonus por velocidad
-  - rule_id: "PTS-004"
-    name: "Bonus Remediación Rápida (Critical)"
-    type: "points"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "rescan_completed"
-      conditions:
-        - "RescanResult.present == false"
-        - "Alert.severity == 'CRITICAL'"
-        - "Alert.quality IN ['high', 'medium']"
-        - "(Remediation.action_ts - Alert.first_seen) < 24 hours"
-    
-    action:
-      points: 50
-      target: "individual"
-      recipient: "Remediation.user_id"
-      reason: "Bonus por remediación crítica en menos de 24h"
-      evidence:
-        - "RescanResult.rescan_id"
-
-# ----------------------------------------------------------------------------
-# REGLAS DE PENALIZACIÓN
-# ----------------------------------------------------------------------------
-penalty_rules:
-  
-  # Penalización por timeout en verificación
-  - rule_id: "PEN-001"
-    name: "Penalización por Timeout de Verificación"
-    type: "penalty"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "grace_period_expired"
-      conditions:
-        - "Alert.status == 'pending_verification'"
-        - "(current_time - Remediation.action_ts) > config.verification.grace_period_hours"
-        - "RescanResult NOT EXISTS OR RescanResult.present == true"
-    
-    action:
-      points: -30
-      target: "individual"
-      recipient: "Remediation.user_id"
-      reason: "Marca de remediación no verificada en 72h"
-      penalty_reason: "timeout"
-      original_alert_status: "pending_verification"
-      evidence:
-        - "Alert.alert_id"
-        - "Remediation.remediation_id"
-    
-    side_effects:
-      - update_alert:
-          alert_id: "Alert.alert_id"
-          new_status: "open"
-          notes: "Verificación expirada, regresada a open"
-
-  # Penalización por falsa marca de remediación
-  - rule_id: "PEN-002"
-    name: "Penalización por Falsa Remediación"
-    type: "penalty"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "rescan_completed"
-      conditions:
-        - "RescanResult.present == true"
-        - "Alert.status == 'pending_verification'"
-        - "Remediation.type == 'user_mark'"
-    
-    action:
-      points: -50
-      target: "individual"
-      recipient: "Remediation.user_id"
-      reason: "Remediación marcada pero vulnerabilidad persiste"
-      penalty_reason: "false_positive_mark"
-      original_alert_status: "pending_verification"
-      evidence:
-        - "RescanResult.rescan_id"
-        - "Alert.alert_id"
-    
-    side_effects:
-      - update_alert:
-          alert_id: "Alert.alert_id"
-          new_status: "verified_persists"
-          notes: "Rescan confirmó que la vulnerabilidad aún existe"
-      - update_remediation:
-          remediation_id: "Remediation.remediation_id"
-          new_status: "failed_verification"
-
-  # Penalización por reapertura (remediación superficial)
-  - rule_id: "PEN-003"
-    name: "Penalización por Reapertura Recurrente"
-    type: "penalty"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "alert_reopened"
-      conditions:
-        - "Alert.status == 'reopened'"
-        - "Alert.reopen_count >= 2"
-    
-    action:
-      points: -75
-      target: "individual"
-      recipient: "last_remediation.user_id"  # Usuario de la última remediación
-      reason: "Alerta crítica reabierta por 2da vez - remediación superficial"
-      penalty_reason: "recurrent_reopen"
-      original_alert_status: "verified_resolved"
-      evidence:
-        - "Alert.alert_id"
-        - "Alert.lifecycle_history"
-
-# ----------------------------------------------------------------------------
-# REGLAS DE EXCLUSIÓN (No se otorgan puntos)
-# ----------------------------------------------------------------------------
-exclusion_rules:
-  
-  - rule_id: "EXC-001"
-    name: "Excluir Alertas de Baja Calidad"
-    type: "validation"
-    active: true
-    version: 1
-    
-    conditions:
-      - "Alert.quality == 'low'"
-    
-    action:
-      block_gamification: true
-      reason: "Alertas de baja calidad no participan en gamificación"
-      log_exclusion: true
-
-  - rule_id: "EXC-002"
-    name: "Excluir Falsos Positivos Confirmados"
-    type: "validation"
-    active: true
-    version: 1
-    
-    conditions:
-      - "Alert.status == 'ignored'"
-    
-    action:
-      block_gamification: true
-      reason: "Alerta marcada como falso positivo confirmado"
-      log_exclusion: true
-
-  - rule_id: "EXC-003"
-    name: "Excluir Rescans Automáticos para Puntos"
-    type: "validation"
-    active: true
-    version: 1
-    
-    conditions:
-      - "RescanResult.trigger IN ['scheduled_weekly', 'auto_maintenance']"
-    
-    action:
-      block_point_award: true
-      reason: "Rescans automáticos no generan puntos, solo actualizan estado"
-      allow_badge_progress: true  # Sí cuentan para progreso de badges
-      log_exclusion: true
-
-# ----------------------------------------------------------------------------
-# REGLAS DE REAPARICIÓN (Regresión)
-# ----------------------------------------------------------------------------
-regression_rules:
-  
-  - rule_id: "REG-001"
-    name: "Manejo de Reaparición de Alerta"
-    type: "maintenance"
-    active: true
-    version: 1
-    
-    trigger:
-      event: "alert_reappeared"
-      conditions:
-        - "Alert.signature EXISTS IN resolved_alerts"
-        - "Alert.status == 'verified_resolved'"
-        - "new RescanResult.present == true"
-    
-    action:
-      update_alert:
-        status: "reopened"
-        reopen_count: "INCREMENT"
-        last_reopened_at: "current_timestamp"
-        lifecycle_history: "APPEND { status: 'reopened', timestamp: now, rescan_id: RescanResult.rescan_id }"
-      
-      create_notification:
-        target: "last_remediation.user_id"
-        message: "⚠️ Alerta {Alert.alert_id} ha reaparecido. Se requiere nueva remediación."
-        priority: "high"
-      
-      reset_remediation_cycle: true
-      reason: "Vulnerabilidad resuelta previamente ha reaparecido"
-
-# ----------------------------------------------------------------------------
-# BADGES (INSIGNIAS) - Condiciones Compuestas
-# ----------------------------------------------------------------------------
-badge_rules:
-  
-  # Badge Individual: Primera Sangre
-  - badge_id: "BDG-001"
-    name: "🩸 Primera Sangre"
-    description: "Remediaste tu primera vulnerabilidad crítica verificada"
-    category: "achievement"
-    icon_url: "/badges/first-blood.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "individual"
-      conditions:
-        - count:
-            entity: "PointTxn"
-            filters:
-              - "user_id == current_user"
-              - "rule_id IN ['PTS-001']"  # Solo critical verificadas
-              - "points > 0"
-            operator: ">="
-            threshold: 1
-    
-    award_trigger:
-      event: "point_transaction_created"
-      immediate: true
-
-  # Badge Individual: Guardián del Código
-  - badge_id: "BDG-002"
-    name: "🛡️ Guardián del Código"
-    description: "Remediaste 10 vulnerabilidades críticas en 30 días"
-    category: "mastery"
-    icon_url: "/badges/code-guardian.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "individual"
-      conditions:
-        - count:
-            entity: "PointTxn"
-            filters:
-              - "user_id == current_user"
-              - "rule_id == 'PTS-001'"
-              - "timestamp >= (current_time - 30 days)"
-              - "points > 0"
-            operator: ">="
-            threshold: 10
-    
-    award_trigger:
-      event: "point_transaction_created"
-      check_frequency: "on_transaction"
-
-  # Badge Individual: Velocista de Seguridad
-  - badge_id: "BDG-003"
-    name: "⚡ Velocista de Seguridad"
-    description: "Remediaste 5 vulnerabilidades críticas en menos de 24h cada una"
-    category: "speed"
-    icon_url: "/badges/speed-demon.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "individual"
-      conditions:
-        - count:
-            entity: "PointTxn"
-            filters:
-              - "user_id == current_user"
-              - "rule_id == 'PTS-004'"  # Bonus de velocidad
-              - "points > 0"
-            operator: ">="
-            threshold: 5
-    
-    award_trigger:
-      event: "point_transaction_created"
-      check_frequency: "on_transaction"
-
-  # Badge Individual: Racha Perfecta
-  - badge_id: "BDG-004"
-    name: "🔥 Racha Perfecta"
-    description: "7 días consecutivos remediando al menos 1 alerta HIGH o CRITICAL"
-    category: "consistency"
-    icon_url: "/badges/perfect-streak.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "individual"
-      conditions:
-        - streak:
-            entity: "PointTxn"
-            filters:
-              - "user_id == current_user"
-              - "rule_id IN ['PTS-001', 'PTS-002']"
-              - "points > 0"
-            consecutive_days: 7
-            min_per_day: 1
-    
-    award_trigger:
-      event: "daily_aggregation"
-      check_frequency: "daily_at_midnight"
-
-  # Badge de Equipo: Fortaleza Colectiva
-  - badge_id: "BDG-005"
-    name: "🏰 Fortaleza Colectiva"
-    description: "El equipo remedió 50 vulnerabilidades HIGH+ en un sprint"
-    category: "team"
-    icon_url: "/badges/team-fortress.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "team"
-      conditions:
-        - count:
-            entity: "PointTxn"
-            filters:
-              - "team_id == current_team"
-              - "rule_id IN ['PTS-001', 'PTS-002']"
-              - "timestamp >= sprint_start"
-              - "timestamp <= sprint_end"
-              - "points > 0"
-            operator: ">="
-            threshold: 50
-    
-    award_trigger:
-      event: "sprint_end"
-      check_frequency: "on_sprint_close"
-
-  # Badge de Equipo: Sin Nuevas Critical
-  - badge_id: "BDG-006"
-    name: "🌟 Sprint Impecable"
-    description: "El equipo cerró el sprint sin nuevas vulnerabilidades CRITICAL"
-    category: "team"
-    icon_url: "/badges/clean-sprint.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "team"
-      conditions:
-        - count:
-            entity: "Alert"
-            filters:
-              - "team_id == current_team"
-              - "severity == 'CRITICAL'"
-              - "first_seen >= sprint_start"
-              - "first_seen <= sprint_end"
-              - "status NOT IN ['verified_resolved', 'ignored']"
-            operator: "=="
-            threshold: 0
-    
-    award_trigger:
-      event: "sprint_end"
-      check_frequency: "on_sprint_close"
-
-  # Badge de Adopción: Explorador de Herramientas
-  - badge_id: "BDG-007"
-    name: "🔍 Explorador DevSecOps"
-    description: "Remediaste al menos 1 alerta de cada fuente (Dependabot, ZAP, Trivy)"
-    category: "adoption"
-    icon_url: "/badges/tool-explorer.svg"
-    active: true
-    version: 1
-    
-    criteria:
-      type: "individual"
-      conditions:
-        - distinct_count:
-            entity: "Alert"
-            field: "source_id"
-            filters:
-              - "Remediation.user_id == current_user"
-              - "Alert.status == 'verified_resolved'"
-            operator: ">="
-            threshold: 3  # Las 3 fuentes (dependabot, zap, trivy)
-    
-    award_trigger:
-      event: "point_transaction_created"
-      check_frequency: "on_transaction"
-
-# ----------------------------------------------------------------------------
-# MISIONES DE EQUIPO (Desafíos de Sprint)
-# ----------------------------------------------------------------------------
-team_missions:
-  
-  # Misión: Semana de Blindaje
-  - mission_id: "MSN-001"
-    name: "🎯 Semana de Blindaje"
-    description: "El equipo debe remediar todas las vulnerabilidades CRITICAL del backlog esta semana"
-    category: "sprint_challenge"
-    active: true
-    version: 1
-    duration_days: 7
-    
-    start_condition:
-      event: "manual_activation"  # Admin o líder de equipo activa
-      requires_approval: true
-    
-    success_criteria:
-      conditions:
-        - count:
-            entity: "Alert"
-            filters:
-              - "team_id == current_team"
-              - "severity == 'CRITICAL'"
-              - "status == 'open'"
-              - "first_seen < mission_start"
-            operator: "=="
-            threshold: 0  # Todas deben estar cerradas
-    
-    rewards:
-      team_points: 500
-      individual_bonus:
-        points_per_member: 50
-        badge_id: "BDG-008"  # Badge especial de misión
-    
-    failure_penalty:
-      team_points: 0
-      individual_penalty: 0
-      send_notification: true
-
-  # Misión: Sprint sin Regresiones
-  - mission_id: "MSN-002"
-    name: "🚫 Tolerancia Cero"
-    description: "Ninguna alerta debe reabrirse durante este sprint"
-    category: "quality_challenge"
-    active: true
-    version: 1
-    duration_days: 14  # Sprint típico
-    
-    start_condition:
-      event: "sprint_start"
-      automatic: true
-    
-    success_criteria:
-      conditions:
-        - count:
-            entity: "Alert"
-            filters:
-              - "team_id == current_team"
-              - "status == 'reopened'"
-              - "last_reopened_at >= mission_start"
-              - "last_reopened_at <= mission_end"
-            operator: "=="
-            threshold: 0
-    
-    rewards:
-      team_points: 300
-      badge_id: "BDG-009"
-    
-    failure_penalty:
-      team_points: -100
-
-  # Misión: Maratón de Remediación
-  - mission_id: "MSN-003"
-    name: "🏃 Maratón de Remediación"
-    description: "El equipo debe acumular 1000 SecuPoints en 7 días"
-    category: "volume_challenge"
-    active: true
-    version: 1
-    duration_days: 7
-    
-    start_condition:
-      event: "manual_activation"
-      requires_approval: true
-    
-    success_criteria:
-      conditions:
-        - sum:
-            entity: "PointTxn"
-            field: "points"
-            filters:
-              - "team_id == current_team"
-              - "timestamp >= mission_start"
-              - "timestamp <= mission_end"
-              - "points > 0"
-            operator: ">="
-            threshold: 1000
-    
-    rewards:
-      team_points: 500
-      individual_bonus:
-        points_per_member: 100
-    
-    failure_penalty:
-      team_points: 0
-
-# ----------------------------------------------------------------------------
-# REGLAS DE PROGRESO Y NIVELES
-# ----------------------------------------------------------------------------
-progression_rules:
-  
-  levels:
-    - level: 1
-      name: "Aprendiz de Seguridad"
+  # ----------------------------------------------------------------------------
+  # CONFIGURACIÓN GLOBAL
+  # ----------------------------------------------------------------------------
+  config:
+    version: "1.0.0"
+    point_system:
+      currency_name: "SecuPoints"
       min_points: 0
-      max_points: 499
-      perks: []
+      allow_negative: true  # Permitir penalizaciones
     
-    - level: 2
-      name: "Vigilante del Código"
-      min_points: 500
-      max_points: 1499
-      perks:
-        - "Acceso a dashboard avanzado"
+    verification:
+      grace_period_hours: 72  # Tiempo para verificar antes de penalizar
+      auto_rescan_delay_minutes: 30  # Espera antes de rescan automático
     
-    - level: 3
-      name: "Guardián DevSecOps"
-      min_points: 1500
-      max_points: 3999
-      perks:
-        - "Acceso a dashboard avanzado"
-        - "Multiplicador de puntos x1.1"
-    
-    - level: 4
-      name: "Centinela Élite"
-      min_points: 4000
-      max_points: 9999
-      perks:
-        - "Acceso a dashboard avanzado"
-        - "Multiplicador de puntos x1.2"
-        - "Puede iniciar misiones de equipo"
-    
-    - level: 5
-      name: "Maestro de la Seguridad"
-      min_points: 10000
-      max_points: null
-      perks:
-        - "Acceso a dashboard avanzado"
-        - "Multiplicador de puntos x1.5"
-        - "Puede iniciar misiones de equipo"
-        - "Reconocimiento en hall of fame"
+    quality_filter:
+      exclude_low_quality: true  # No gamificar alertas de baja calidad
+      minimum_quality: "medium"
 
-# ----------------------------------------------------------------------------
-# CONFIGURACIÓN DE NOTIFICACIONES
-# ----------------------------------------------------------------------------
-notification_rules:
-  
-  # Notificar cuando se otorgan puntos
-  - trigger: "point_transaction_created"
-    conditions:
-      - "PointTxn.points > 0"
-    channels:
-      - type: "slack"
-        template: "🎉 ¡+{points} SecuPoints! {reason}"
-        mention_user: true
-  
-  # Notificar cuando se otorga badge
-  - trigger: "badge_awarded"
-    conditions: []
-    channels:
-      - type: "slack"
-        template: "🏆 ¡Nuevo badge desbloqueado: {badge_name}! {description}"
-        mention_user: true
-        public_announcement: true
-  
-  # Notificar penalizaciones
-  - trigger: "penalty_applied"
-    conditions:
-      - "PointTxn.points < 0"
-    channels:
-      - type: "slack"
-        template: "⚠️ Penalización: {penalty_reason}. {points} puntos. {reason}"
-        mention_user: true
-        private: true
-  
-  # Notificar reapertura de alerta
-  - trigger: "alert_reopened"
-    conditions: []
-    channels:
-      - type: "slack"
-        template: "🔄 Alerta {alert_id} ha reaparecido. Se requiere nueva remediación."
-        mention_user: true
+  # ----------------------------------------------------------------------------
+  # REGLAS DE PUNTOS POR REMEDIACIÓN VERIFICADA
+  # ----------------------------------------------------------------------------
+  point_rules:
+    
+    # REGLA CORE: Puntos por Severidad Verificada
+    - rule_id: "PTS-001"
+      name: "Remediación Verificada - Critical"
+      type: "points"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "rescan_completed"
+        conditions:
+          - "RescanResult.present == false"
+          - "Alert.severity == 'CRITICAL'"
+          - "Alert.quality IN ['high', 'medium']"
+          - "Alert.status == 'pending_verification'"
+          - "Remediation.type == 'user_mark'"
+      
+      action:
+        points: 100
+        target: "individual"  # individual | team | both
+        recipient: "Remediation.user_id"
+        reason: "Vulnerabilidad CRÍTICA verificada como resuelta"
+        evidence:
+          - "RescanResult.rescan_id"
+          - "Alert.alert_id"
+          - "Remediation.remediation_id"
+      
+      metadata:
+        category: "remediation"
+        subcategory: "verified"
+        severity_level: "critical"
 
-# ----------------------------------------------------------------------------
-# METADATOS DEL DOCUMENTO
-# ----------------------------------------------------------------------------
-metadata:
-  created_by: "SecuBot Team"
-  created_at: "2025-24-11"
-  last_updated: "2025-24-11"
-  schema_version: "1.0.0"
-  compatible_with: "SecuBot v1.0.0+"
-  
-  notes: |
-    Este documento define las reglas ejecutables del sistema de gamificación
-    verificada de SecuBot. Todas las recompensas están vinculadas a remediaciones
-    verificadas mediante rescans automáticos para evitar el gaming del sistema.
+    - rule_id: "PTS-002"
+      name: "Remediación Verificada - High"
+      type: "points"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "rescan_completed"
+        conditions:
+          - "RescanResult.present == false"
+          - "Alert.severity == 'HIGH'"
+          - "Alert.quality IN ['high', 'medium']"
+          - "Alert.status == 'pending_verification'"
+          - "Remediation.type == 'user_mark'"
+      
+      action:
+        points: 50
+        target: "individual"
+        recipient: "Remediation.user_id"
+        reason: "Vulnerabilidad HIGH verificada como resuelta"
+        evidence:
+          - "RescanResult.rescan_id"
+          - "Alert.alert_id"
+          - "Remediation.remediation_id"
+
+    - rule_id: "PTS-003"
+      name: "Remediación Verificada - Medium"
+      type: "points"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "rescan_completed"
+        conditions:
+          - "RescanResult.present == false"
+          - "Alert.severity == 'MEDIUM'"
+          - "Alert.quality IN ['high', 'medium']"
+          - "Alert.status == 'pending_verification'"
+          - "Remediation.type == 'user_mark'"
+      
+      action:
+        points: 20
+        target: "individual"
+        recipient: "Remediation.user_id"
+        reason: "Vulnerabilidad MEDIUM verificada como resuelta"
+        evidence:
+          - "RescanResult.rescan_id"
+          - "Alert.alert_id"
+
+    # Bonus por velocidad
+    - rule_id: "PTS-004"
+      name: "Bonus Remediación Rápida (Critical)"
+      type: "points"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "rescan_completed"
+        conditions:
+          - "RescanResult.present == false"
+          - "Alert.severity == 'CRITICAL'"
+          - "Alert.quality IN ['high', 'medium']"
+          - "(Remediation.action_ts - Alert.first_seen) < 24 hours"
+      
+      action:
+        points: 50
+        target: "individual"
+        recipient: "Remediation.user_id"
+        reason: "Bonus por remediación crítica en menos de 24h"
+        evidence:
+          - "RescanResult.rescan_id"
+
+  # ----------------------------------------------------------------------------
+  # REGLAS DE PENALIZACIÓN
+  # ----------------------------------------------------------------------------
+  penalty_rules:
     
-    Las reglas están diseñadas para:
-    1. Priorizar calidad sobre cantidad (H2)
-    2. Fomentar colaboración (H3)
-    3. Mantener simplicidad inicial (H4)
-    4. Anticipar trade-offs (H5)
+    # Penalización por timeout en verificación
+    - rule_id: "PEN-001"
+      name: "Penalización por Timeout de Verificación"
+      type: "penalty"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "grace_period_expired"
+        conditions:
+          - "Alert.status == 'pending_verification'"
+          - "(current_time - Remediation.action_ts) > config.verification.grace_period_hours"
+          - "RescanResult NOT EXISTS OR RescanResult.present == true"
+      
+      action:
+        points: -30
+        target: "individual"
+        recipient: "Remediation.user_id"
+        reason: "Marca de remediación no verificada en 72h"
+        penalty_reason: "timeout"
+        original_alert_status: "pending_verification"
+        evidence:
+          - "Alert.alert_id"
+          - "Remediation.remediation_id"
+      
+      side_effects:
+        - update_alert:
+            alert_id: "Alert.alert_id"
+            new_status: "open"
+            notes: "Verificación expirada, regresada a open"
+
+    # Penalización por falsa marca de remediación
+    - rule_id: "PEN-002"
+      name: "Penalización por Falsa Remediación"
+      type: "penalty"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "rescan_completed"
+        conditions:
+          - "RescanResult.present == true"
+          - "Alert.status == 'pending_verification'"
+          - "Remediation.type == 'user_mark'"
+      
+      action:
+        points: -50
+        target: "individual"
+        recipient: "Remediation.user_id"
+        reason: "Remediación marcada pero vulnerabilidad persiste"
+        penalty_reason: "false_positive_mark"
+        original_alert_status: "pending_verification"
+        evidence:
+          - "RescanResult.rescan_id"
+          - "Alert.alert_id"
+      
+      side_effects:
+        - update_alert:
+            alert_id: "Alert.alert_id"
+            new_status: "verified_persists"
+            notes: "Rescan confirmó que la vulnerabilidad aún existe"
+        - update_remediation:
+            remediation_id: "Remediation.remediation_id"
+            new_status: "failed_verification"
+
+    # Penalización por reapertura (remediación superficial)
+    - rule_id: "PEN-003"
+      name: "Penalización por Reapertura Recurrente"
+      type: "penalty"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "alert_reopened"
+        conditions:
+          - "Alert.status == 'reopened'"
+          - "Alert.reopen_count >= 2"
+      
+      action:
+        points: -75
+        target: "individual"
+        recipient: "last_remediation.user_id"  # Usuario de la última remediación
+        reason: "Alerta crítica reabierta por 2da vez - remediación superficial"
+        penalty_reason: "recurrent_reopen"
+        original_alert_status: "verified_resolved"
+        evidence:
+          - "Alert.alert_id"
+          - "Alert.lifecycle_history"
+
+  # ----------------------------------------------------------------------------
+  # REGLAS DE EXCLUSIÓN (No se otorgan puntos)
+  # ----------------------------------------------------------------------------
+  exclusion_rules:
     
-    Para modificar estas reglas, actualizar el campo 'version' y mantener
-    retrocompatibilidad con transacciones históricas.
+    - rule_id: "EXC-001"
+      name: "Excluir Alertas de Baja Calidad"
+      type: "validation"
+      active: true
+      version: 1
+      
+      conditions:
+        - "Alert.quality == 'low'"
+      
+      action:
+        block_gamification: true
+        reason: "Alertas de baja calidad no participan en gamificación"
+        log_exclusion: true
+
+    - rule_id: "EXC-002"
+      name: "Excluir Falsos Positivos Confirmados"
+      type: "validation"
+      active: true
+      version: 1
+      
+      conditions:
+        - "Alert.status == 'ignored'"
+      
+      action:
+        block_gamification: true
+        reason: "Alerta marcada como falso positivo confirmado"
+        log_exclusion: true
+
+    - rule_id: "EXC-003"
+      name: "Excluir Rescans Automáticos para Puntos"
+      type: "validation"
+      active: true
+      version: 1
+      
+      conditions:
+        - "RescanResult.trigger IN ['scheduled_weekly', 'auto_maintenance']"
+      
+      action:
+        block_point_award: true
+        reason: "Rescans automáticos no generan puntos, solo actualizan estado"
+        allow_badge_progress: true  # Sí cuentan para progreso de badges
+        log_exclusion: true
+
+  # ----------------------------------------------------------------------------
+  # REGLAS DE REAPARICIÓN (Regresión)
+  # ----------------------------------------------------------------------------
+  regression_rules:
+    
+    - rule_id: "REG-001"
+      name: "Manejo de Reaparición de Alerta"
+      type: "maintenance"
+      active: true
+      version: 1
+      
+      trigger:
+        event: "alert_reappeared"
+        conditions:
+          - "Alert.signature EXISTS IN resolved_alerts"
+          - "Alert.status == 'verified_resolved'"
+          - "new RescanResult.present == true"
+      
+      action:
+        update_alert:
+          status: "reopened"
+          reopen_count: "INCREMENT"
+          last_reopened_at: "current_timestamp"
+          lifecycle_history: "APPEND { status: 'reopened', timestamp: now, rescan_id: RescanResult.rescan_id }"
+        
+        create_notification:
+          target: "last_remediation.user_id"
+          message: "⚠️ Alerta {Alert.alert_id} ha reaparecido. Se requiere nueva remediación."
+          priority: "high"
+        
+        reset_remediation_cycle: true
+        reason: "Vulnerabilidad resuelta previamente ha reaparecido"
+
+  # ----------------------------------------------------------------------------
+  # BADGES (INSIGNIAS) - Condiciones Compuestas
+  # ----------------------------------------------------------------------------
+  badge_rules:
+    
+    # Badge Individual: Primera Sangre
+    - badge_id: "BDG-001"
+      name: "🩸 Primera Sangre"
+      description: "Remediaste tu primera vulnerabilidad crítica verificada"
+      category: "achievement"
+      icon_url: "/badges/first-blood.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "individual"
+        conditions:
+          - count:
+              entity: "PointTxn"
+              filters:
+                - "user_id == current_user"
+                - "rule_id IN ['PTS-001']"  # Solo critical verificadas
+                - "points > 0"
+              operator: ">="
+              threshold: 1
+      
+      award_trigger:
+        event: "point_transaction_created"
+        immediate: true
+
+    # Badge Individual: Guardián del Código
+    - badge_id: "BDG-002"
+      name: "🛡️ Guardián del Código"
+      description: "Remediaste 10 vulnerabilidades críticas en 30 días"
+      category: "mastery"
+      icon_url: "/badges/code-guardian.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "individual"
+        conditions:
+          - count:
+              entity: "PointTxn"
+              filters:
+                - "user_id == current_user"
+                - "rule_id == 'PTS-001'"
+                - "timestamp >= (current_time - 30 days)"
+                - "points > 0"
+              operator: ">="
+              threshold: 10
+      
+      award_trigger:
+        event: "point_transaction_created"
+        check_frequency: "on_transaction"
+
+    # Badge Individual: Velocista de Seguridad
+    - badge_id: "BDG-003"
+      name: "⚡ Velocista de Seguridad"
+      description: "Remediaste 5 vulnerabilidades críticas en menos de 24h cada una"
+      category: "speed"
+      icon_url: "/badges/speed-demon.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "individual"
+        conditions:
+          - count:
+              entity: "PointTxn"
+              filters:
+                - "user_id == current_user"
+                - "rule_id == 'PTS-004'"  # Bonus de velocidad
+                - "points > 0"
+              operator: ">="
+              threshold: 5
+      
+      award_trigger:
+        event: "point_transaction_created"
+        check_frequency: "on_transaction"
+
+    # Badge Individual: Racha Perfecta
+    - badge_id: "BDG-004"
+      name: "🔥 Racha Perfecta"
+      description: "7 días consecutivos remediando al menos 1 alerta HIGH o CRITICAL"
+      category: "consistency"
+      icon_url: "/badges/perfect-streak.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "individual"
+        conditions:
+          - streak:
+              entity: "PointTxn"
+              filters:
+                - "user_id == current_user"
+                - "rule_id IN ['PTS-001', 'PTS-002']"
+                - "points > 0"
+              consecutive_days: 7
+              min_per_day: 1
+      
+      award_trigger:
+        event: "daily_aggregation"
+        check_frequency: "daily_at_midnight"
+
+    # Badge de Equipo: Fortaleza Colectiva
+    - badge_id: "BDG-005"
+      name: "🏰 Fortaleza Colectiva"
+      description: "El equipo remedió 50 vulnerabilidades HIGH+ en un sprint"
+      category: "team"
+      icon_url: "/badges/team-fortress.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "team"
+        conditions:
+          - count:
+              entity: "PointTxn"
+              filters:
+                - "team_id == current_team"
+                - "rule_id IN ['PTS-001', 'PTS-002']"
+                - "timestamp >= sprint_start"
+                - "timestamp <= sprint_end"
+                - "points > 0"
+              operator: ">="
+              threshold: 50
+      
+      award_trigger:
+        event: "sprint_end"
+        check_frequency: "on_sprint_close"
+
+    # Badge de Equipo: Sin Nuevas Critical
+    - badge_id: "BDG-006"
+      name: "🌟 Sprint Impecable"
+      description: "El equipo cerró el sprint sin nuevas vulnerabilidades CRITICAL"
+      category: "team"
+      icon_url: "/badges/clean-sprint.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "team"
+        conditions:
+          - count:
+              entity: "Alert"
+              filters:
+                - "team_id == current_team"
+                - "severity == 'CRITICAL'"
+                - "first_seen >= sprint_start"
+                - "first_seen <= sprint_end"
+                - "status NOT IN ['verified_resolved', 'ignored']"
+              operator: "=="
+              threshold: 0
+      
+      award_trigger:
+        event: "sprint_end"
+        check_frequency: "on_sprint_close"
+
+    # Badge de Adopción: Explorador de Herramientas
+    - badge_id: "BDG-007"
+      name: "🔍 Explorador DevSecOps"
+      description: "Remediaste al menos 1 alerta de cada fuente (Dependabot, ZAP, Trivy)"
+      category: "adoption"
+      icon_url: "/badges/tool-explorer.svg"
+      active: true
+      version: 1
+      
+      criteria:
+        type: "individual"
+        conditions:
+          - distinct_count:
+              entity: "Alert"
+              field: "source_id"
+              filters:
+                - "Remediation.user_id == current_user"
+                - "Alert.status == 'verified_resolved'"
+              operator: ">="
+              threshold: 3  # Las 3 fuentes (dependabot, zap, trivy)
+      
+      award_trigger:
+        event: "point_transaction_created"
+        check_frequency: "on_transaction"
+
+  # ----------------------------------------------------------------------------
+  # MISIONES DE EQUIPO (Desafíos de Sprint)
+  # ----------------------------------------------------------------------------
+  team_missions:
+    
+    # Misión: Semana de Blindaje
+    - mission_id: "MSN-001"
+      name: "🎯 Semana de Blindaje"
+      description: "El equipo debe remediar todas las vulnerabilidades CRITICAL del backlog esta semana"
+      category: "sprint_challenge"
+      active: true
+      version: 1
+      duration_days: 7
+      
+      start_condition:
+        event: "manual_activation"  # Admin o líder de equipo activa
+        requires_approval: true
+      
+      success_criteria:
+        conditions:
+          - count:
+              entity: "Alert"
+              filters:
+                - "team_id == current_team"
+                - "severity == 'CRITICAL'"
+                - "status == 'open'"
+                - "first_seen < mission_start"
+              operator: "=="
+              threshold: 0  # Todas deben estar cerradas
+      
+      rewards:
+        team_points: 500
+        individual_bonus:
+          points_per_member: 50
+          badge_id: "BDG-008"  # Badge especial de misión
+      
+      failure_penalty:
+        team_points: 0
+        individual_penalty: 0
+        send_notification: true
+
+    # Misión: Sprint sin Regresiones
+    - mission_id: "MSN-002"
+      name: "🚫 Tolerancia Cero"
+      description: "Ninguna alerta debe reabrirse durante este sprint"
+      category: "quality_challenge"
+      active: true
+      version: 1
+      duration_days: 14  # Sprint típico
+      
+      start_condition:
+        event: "sprint_start"
+        automatic: true
+      
+      success_criteria:
+        conditions:
+          - count:
+              entity: "Alert"
+              filters:
+                - "team_id == current_team"
+                - "status == 'reopened'"
+                - "last_reopened_at >= mission_start"
+                - "last_reopened_at <= mission_end"
+              operator: "=="
+              threshold: 0
+      
+      rewards:
+        team_points: 300
+        badge_id: "BDG-009"
+      
+      failure_penalty:
+        team_points: -100
+
+    # Misión: Maratón de Remediación
+    - mission_id: "MSN-003"
+      name: "🏃 Maratón de Remediación"
+      description: "El equipo debe acumular 1000 SecuPoints en 7 días"
+      category: "volume_challenge"
+      active: true
+      version: 1
+      duration_days: 7
+      
+      start_condition:
+        event: "manual_activation"
+        requires_approval: true
+      
+      success_criteria:
+        conditions:
+          - sum:
+              entity: "PointTxn"
+              field: "points"
+              filters:
+                - "team_id == current_team"
+                - "timestamp >= mission_start"
+                - "timestamp <= mission_end"
+                - "points > 0"
+              operator: ">="
+              threshold: 1000
+      
+      rewards:
+        team_points: 500
+        individual_bonus:
+          points_per_member: 100
+      
+      failure_penalty:
+        team_points: 0
+
+  # ----------------------------------------------------------------------------
+  # REGLAS DE PROGRESO Y NIVELES
+  # ----------------------------------------------------------------------------
+  progression_rules:
+    
+    levels:
+      - level: 1
+        name: "Aprendiz de Seguridad"
+        min_points: 0
+        max_points: 499
+        perks: []
+      
+      - level: 2
+        name: "Vigilante del Código"
+        min_points: 500
+        max_points: 1499
+        perks:
+          - "Acceso a dashboard avanzado"
+      
+      - level: 3
+        name: "Guardián DevSecOps"
+        min_points: 1500
+        max_points: 3999
+        perks:
+          - "Acceso a dashboard avanzado"
+          - "Multiplicador de puntos x1.1"
+      
+      - level: 4
+        name: "Centinela Élite"
+        min_points: 4000
+        max_points: 9999
+        perks:
+          - "Acceso a dashboard avanzado"
+          - "Multiplicador de puntos x1.2"
+          - "Puede iniciar misiones de equipo"
+      
+      - level: 5
+        name: "Maestro de la Seguridad"
+        min_points: 10000
+        max_points: null
+        perks:
+          - "Acceso a dashboard avanzado"
+          - "Multiplicador de puntos x1.5"
+          - "Puede iniciar misiones de equipo"
+          - "Reconocimiento en hall of fame"
+
+  # ----------------------------------------------------------------------------
+  # CONFIGURACIÓN DE NOTIFICACIONES
+  # ----------------------------------------------------------------------------
+  notification_rules:
+    
+    # Notificar cuando se otorgan puntos
+    - trigger: "point_transaction_created"
+      conditions:
+        - "PointTxn.points > 0"
+      channels:
+        - type: "slack"
+          template: "🎉 ¡+{points} SecuPoints! {reason}"
+          mention_user: true
+    
+    # Notificar cuando se otorga badge
+    - trigger: "badge_awarded"
+      conditions: []
+      channels:
+        - type: "slack"
+          template: "🏆 ¡Nuevo badge desbloqueado: {badge_name}! {description}"
+          mention_user: true
+          public_announcement: true
+    
+    # Notificar penalizaciones
+    - trigger: "penalty_applied"
+      conditions:
+        - "PointTxn.points < 0"
+      channels:
+        - type: "slack"
+          template: "⚠️ Penalización: {penalty_reason}. {points} puntos. {reason}"
+          mention_user: true
+          private: true
+    
+    # Notificar reapertura de alerta
+    - trigger: "alert_reopened"
+      conditions: []
+      channels:
+        - type: "slack"
+          template: "🔄 Alerta {alert_id} ha reaparecido. Se requiere nueva remediación."
+          mention_user: true
+
+  # ----------------------------------------------------------------------------
+  # METADATOS DEL DOCUMENTO
+  # ----------------------------------------------------------------------------
+  metadata:
+    created_by: "SecuBot Team"
+    created_at: "2025-24-11"
+    last_updated: "2025-24-11"
+    schema_version: "1.0.0"
+    compatible_with: "SecuBot v1.0.0+"
+    
+    notes: |
+      Este documento define las reglas ejecutables del sistema de gamificación
+      verificada de SecuBot. Todas las recompensas están vinculadas a remediaciones
+      verificadas mediante rescans automáticos para evitar el gaming del sistema.
+      
+      Las reglas están diseñadas para:
+      1. Priorizar calidad sobre cantidad (H2)
+      2. Fomentar colaboración (H3)
+      3. Mantener simplicidad inicial (H4)
+      4. Anticipar trade-offs (H5)
+      
+      Para modificar estas reglas, actualizar el campo 'version' y mantener
+      retrocompatibilidad con transacciones históricas.

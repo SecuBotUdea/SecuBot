@@ -132,6 +132,7 @@ def test_scenario_critical_resolved_gives_100_points(critical_vulnerability_reso
     loader.load()
     
     rule = loader.get_rule_by_id("PTS-001")
+    assert rule is not None
     
     context = {
         "Alert": critical_vulnerability_resolved["alert"],
@@ -198,11 +199,13 @@ def test_scenario_fast_remediation_gets_bonus(critical_vulnerability_fast):
     
     # Act - Evaluar PTS-001 (base)
     rule_base = loader.get_rule_by_id("PTS-001")
+    assert rule_base is not None
     evaluator = ConditionEvaluator(context)
     base_met = evaluator.evaluate_all(rule_base.trigger.conditions, operator="AND")
     
     # Act - Evaluar PTS-004 (bonus)
     rule_bonus = loader.get_rule_by_id("PTS-004")
+    assert rule_bonus is not None
     bonus_met = evaluator.evaluate_all(rule_bonus.trigger.conditions, operator="AND")
     
     # Assert
@@ -275,6 +278,7 @@ def test_badge_evaluation_logic():
     loader.load()
     
     badge = loader.get_rule_by_id("BDG-001")  # Primera Sangre
+    assert badge is not None
     
     print(f"\n🏆 Badge: {badge.name}")
     print(f"📝 Descripción: {badge.description}")
@@ -303,6 +307,7 @@ def test_exclusion_rules():
     loader.load()
     
     exclusion = loader.get_rule_by_id("EXC-001")
+    assert exclusion is not None
     
     context_low_quality = {
         "Alert": {
