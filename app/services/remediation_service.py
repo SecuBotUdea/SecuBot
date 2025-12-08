@@ -27,7 +27,6 @@ from app.database.connection import get_database
 from app.services.alert_service import get_alert_service
 from app.services.rescan_service import get_rescan_service
 
-# Importar el RuleEngine (tu Fase 2 completada)
 from app.engines.rule_engine import RuleEngine
 
 
