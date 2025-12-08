@@ -35,6 +35,7 @@ dependencies = [
     "python-dateutil>=2.8.2",
 
     "pymongo",
+    "aiohttp",
 ]
 
 [project.optional-dependencies]
