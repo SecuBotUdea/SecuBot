@@ -11,9 +11,9 @@ import sys
 # Agregar el directorio raíz al path para importar módulos de la app
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.database.mongodb import init_db_connection, get_database, close_db_connection
-from config.settings import settings
+from app.database.mongodb import close_db_connection, get_database, init_db_connection
 from app.utils.logger import get_logger
+from config.settings import settings
 
 logger = get_logger(__name__)
 

@@ -7,11 +7,12 @@ Sistema de orquestacion DevSecOps con gamificacion verificada
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import alerts, notifications, remediations, users
-from app.database.connection import close_db_connection, init_db_connection
 from app.database.indexes import create_indexes
+from app.database.mongodb import close_db_connection, init_db_connection
 from config.settings import settings
 
 

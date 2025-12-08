@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 """
 Seed Database Script - Populate MongoDB with sample data
 Run: python -m scripts.seed_db
@@ -7,7 +7,7 @@ Run: python -m scripts.seed_db
 import asyncio
 from datetime import datetime, timedelta
 
-from app.database.mongodb import init_db_connection, get_database, close_db_connection
+from app.database.mongodb import close_db_connection, get_database, init_db_connection
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -258,15 +258,15 @@ async def seed_database():
         logger.info('\n' + '='*60)
         logger.info('Database seeding completed successfully!')
         logger.info('='*60)
-        logger.info(f'Users created: 2')
-        logger.info(f'Alerts created: 5')
-        logger.info(f'  - CRITICAL: 1 (verified)')
-        logger.info(f'  - HIGH: 1 (failed)')
-        logger.info(f'  - MEDIUM: 1 (open)')
-        logger.info(f'  - LOW: 1 (pending)')
-        logger.info(f'  - INFO: 1 (ignored)')
-        logger.info(f'Remediations created: 2 (1 verified, 1 failed)')
-        logger.info(f'Point transactions: 3 (+100, +50, -25)')
+        logger.info('Users created: 2')
+        logger.info('Alerts created: 5')
+        logger.info('  - CRITICAL: 1 (verified)')
+        logger.info('  - HIGH: 1 (failed)')
+        logger.info('  - MEDIUM: 1 (open)')
+        logger.info('  - LOW: 1 (pending)')
+        logger.info('  - INFO: 1 (ignored)')
+        logger.info('Remediations created: 2 (1 verified, 1 failed)')
+        logger.info('Point transactions: 3 (+100, +50, -25)')
         logger.info('='*60)
 
     except Exception as e:
