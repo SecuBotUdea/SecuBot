@@ -15,11 +15,5 @@
       "src": "/(.*)",
       "dest": "app/main.py"
     }
-  ],
-  "env": {
-    "MONGODB_URI": "@mongodb_uri",
-    "DATABASE_NAME": "@database_name",
-    "ENVIRONMENT": "@environment",
-    "DEBUG": "@debug"
-  }
+  ]
 }
