@@ -7,7 +7,7 @@ Responsable de CRUD básico de usuarios sin autenticación (sin password).
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 
 
 class UserService:

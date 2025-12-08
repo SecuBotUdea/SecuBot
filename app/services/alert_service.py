@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from app.models.alert import Alert
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 
 
 class AlertService:

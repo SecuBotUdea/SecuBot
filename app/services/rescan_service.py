@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Literal
 import random
 
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 from app.services.alert_service import get_alert_service
 
 
