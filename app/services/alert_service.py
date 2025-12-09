@@ -1,16 +1,3 @@
-# app/services/alert_service.py
-"""
-Servicio de gestión de alertas de seguridad.
-Punto de entrada principal del sistema SecuBot.
-
-Las alertas ya vienen normalizadas desde el normalizador externo.
-Este servicio solo se encarga de:
-- Validar el contrato Pydantic
-- Persistir en MongoDB
-- Gestionar el ciclo de vida
-- Proveer queries para el RuleEngine
-"""
-
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
@@ -21,7 +8,6 @@ from app.database.mongodb import get_database
 class AlertService:
     """
     Servicio principal para gestión de alertas de seguridad.
-    
     
     Responsable de:
     - Recibir alertas ya normalizadas vía webhook
@@ -34,37 +20,10 @@ class AlertService:
     def __init__(self):
         self.db = get_database()
         self.collection = self.db.alerts
-        self._ensure_indexes()
 
-    def _ensure_indexes(self):
-        """Crear índices estratégicos para optimizar queries"""
-        try:
-            # Índice único para PK
-            self.collection.create_index("alert_id", unique=True)
-            
-            # Índices para búsquedas comunes del RuleEngine
-            self.collection.create_index("signature")
-            self.collection.create_index("source_id")
-            self.collection.create_index("status")
-            self.collection.create_index("severity")
-            self.collection.create_index("quality")
-            self.collection.create_index("component")
-            self.collection.create_index("first_seen")
-            self.collection.create_index("last_seen")
-            self.collection.create_index("reopen_count")
-            
-            # Índices compuestos para queries frecuentes
-            self.collection.create_index([("status", 1), ("severity", 1)])
-            self.collection.create_index([("source_id", 1), ("status", 1)])
-            self.collection.create_index([("quality", 1), ("first_seen", -1)])
-            self.collection.create_index([("signature", 1), ("status", 1)])
-            
-        except Exception as e:
-            print(f"Advertencia al crear índices: {e}")
-
-    def create_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Crear una nueva alerta desde el webhook.
+        Crear una nueva alerta en el sistema.
         
         Args:
             alert_data: Payload ya normalizado desde el normalizador externo
@@ -85,7 +44,7 @@ class AlertService:
         alert_dict = alert.model_dump()
         
         # 3. Verificar si ya existe (por alert_id)
-        existing = self.collection.find_one({"alert_id": alert_dict["alert_id"]})
+        existing = await self.collection.find_one({"alert_id": alert_dict["alert_id"]})
         if existing:
             return {
                 "status": "duplicate",
@@ -94,12 +53,12 @@ class AlertService:
             }
         
         # 4. Insertar en MongoDB
-        result = self.collection.insert_one(alert_dict)
+        result = await self.collection.insert_one(alert_dict)
         alert_dict["_id"] = str(result.inserted_id)
         
         # 5. TODO: Disparar evento al RuleEngine
         # from app.rule_engine.engine import process_event
-        # process_event("alert_created", {"alert": alert_dict})
+        # await process_event("alert_created", {"alert": alert_dict})
         
         return {
             "status": "created",
@@ -108,7 +67,7 @@ class AlertService:
             "message": f"Alerta {alert_dict['alert_id']} creada exitosamente"
         }
 
-    def get_alert(self, alert_id: str) -> Optional[Dict[str, Any]]:
+    async def get_alert(self, alert_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtener una alerta por su alert_id (PK).
         
@@ -118,22 +77,22 @@ class AlertService:
         Returns:
             Dict con la alerta o None si no existe
         """
-        alert = self.collection.find_one({"alert_id": alert_id})
+        alert = await self.collection.find_one({"alert_id": alert_id})
         if alert:
             alert["_id"] = str(alert["_id"])
         return alert
 
-    def get_alert_by_signature(self, signature: str) -> Optional[Dict[str, Any]]:
+    async def get_alert_by_signature(self, signature: str) -> Optional[Dict[str, Any]]:
         """
         Obtener una alerta por su firma técnica.
         Útil para detectar recurrencias del mismo hallazgo.
         """
-        alert = self.collection.find_one({"signature": signature})
+        alert = await self.collection.find_one({"signature": signature})
         if alert:
             alert["_id"] = str(alert["_id"])
         return alert
 
-    def list_alerts(
+    async def list_alerts(
         self,
         status: Optional[str] = None,
         severity: Optional[str] = None,
@@ -165,13 +124,13 @@ class AlertService:
         cursor = self.collection.find(query).sort("first_seen", -1).skip(skip).limit(limit)
         
         alerts = []
-        for alert in cursor:
+        async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
         
         return alerts
 
-    def update_status(
+    async def update_status(
         self,
         alert_id: str,
         new_status: str,
@@ -188,7 +147,7 @@ class AlertService:
         Returns:
             Alerta actualizada
         """
-        alert = self.get_alert(alert_id)
+        alert = await self.get_alert(alert_id)
         
         if not alert:
             raise ValueError(f"Alerta {alert_id} no encontrada")
@@ -216,7 +175,7 @@ class AlertService:
             update_data["last_reopened_at"] = now
         
         # Actualizar en MongoDB
-        self.collection.update_one(
+        await self.collection.update_one(
             {"alert_id": alert_id},
             {
                 "$set": update_data,
@@ -225,45 +184,46 @@ class AlertService:
         )
         
         # TODO: Disparar evento al RuleEngine
-        # process_event(f"alert_status_changed", {
+        # await process_event(f"alert_status_changed", {
         #     "alert_id": alert_id,
         #     "old_status": alert["status"],
         #     "new_status": new_status
         # })
-        getAlertResult = self.get_alert(alert_id)
+        
+        getAlertResult = await self.get_alert(alert_id)
         assert getAlertResult is not None
         
         return getAlertResult
 
-    def reopen_alert(self, alert_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
+    async def reopen_alert(self, alert_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
         """
         Reabrir una alerta cerrada.
         Incrementa reopen_count y registra en lifecycle_history.
         """
-        return self.update_status(
+        return await self.update_status(
             alert_id,
             "reopened",
             event_metadata={"reason": reason or "Vulnerability detected again"}
         )
 
-    def close_alert(self, alert_id: str, closed_by: Optional[str] = None) -> Dict[str, Any]:
+    async def close_alert(self, alert_id: str, closed_by: Optional[str] = None) -> Dict[str, Any]:
         """
         Cerrar una alerta.
         """
-        return self.update_status(
+        return await self.update_status(
             alert_id,
             "closed",
             event_metadata={"closed_by": closed_by}
         )
 
-    def update_last_seen(self, alert_id: str) -> Dict[str, Any]:
+    async def update_last_seen(self, alert_id: str) -> Dict[str, Any]:
         """
         Actualizar el timestamp last_seen cuando la alerta se detecta nuevamente.
         NO cambia el status, solo actualiza la fecha.
         """
         now = datetime.now(timezone.utc)
         
-        self.collection.update_one(
+        await self.collection.update_one(
             {"alert_id": alert_id},
             {
                 "$set": {
@@ -272,19 +232,20 @@ class AlertService:
                 }
             }
         )
-        getAlertResult = self.get_alert(alert_id)
+        
+        getAlertResult = await self.get_alert(alert_id)
         assert getAlertResult is not None
         
         return getAlertResult
 
-    def get_alerts_by_component(self, component: str) -> List[Dict[str, Any]]:
+    async def get_alerts_by_component(self, component: str) -> List[Dict[str, Any]]:
         """
         Obtener todas las alertas de un componente específico.
         Útil para análisis de vulnerabilidades por módulo.
         """
-        return self.list_alerts(component=component, limit=1000)
+        return await self.list_alerts(component=component, limit=1000)
 
-    def get_open_alerts(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_open_alerts(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Obtener alertas abiertas (status: open o reopened).
         """
@@ -292,20 +253,20 @@ class AlertService:
         cursor = self.collection.find(query).sort("severity", 1).limit(limit)
         
         alerts = []
-        for alert in cursor:
+        async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
         
         return alerts
 
-    def get_high_quality_alerts(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_high_quality_alerts(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
         Obtener alertas de alta calidad.
         Útil para priorización de remediación.
         """
-        return self.list_alerts(quality="high", limit=limit)
+        return await self.list_alerts(quality="high", limit=limit)
 
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """
         Obtener estadísticas generales de alertas.
         """
@@ -349,7 +310,8 @@ class AlertService:
             }
         ]
         
-        result = list(self.collection.aggregate(pipeline))
+        cursor = self.collection.aggregate(pipeline)
+        result = await cursor.to_list(length=None)
         
         if result:
             stats = result[0]
@@ -371,7 +333,7 @@ class AlertService:
             "total_reopens": 0
         }
 
-    def get_alerts_with_multiple_reopens(self, min_reopens: int = 2) -> List[Dict[str, Any]]:
+    async def get_alerts_with_multiple_reopens(self, min_reopens: int = 2) -> List[Dict[str, Any]]:
         """
         Obtener alertas que han sido reabiertas múltiples veces.
         Útil para identificar vulnerabilidades recurrentes o problemas de calidad.
@@ -380,7 +342,7 @@ class AlertService:
         cursor = self.collection.find(query).sort("reopen_count", -1).limit(50)
         
         alerts = []
-        for alert in cursor:
+        async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
         
