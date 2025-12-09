@@ -1,30 +1,29 @@
-# ============================================
-# requirements.txt FUNCIONAL PARA RENDER
-# ============================================
-# Elimina TODOS los requirements anteriores y usa SOLO estos
+# ==============================================
+# requirements.txt - 100% FUNCIONAL
+# SIN CONFLICTOS
+# ==============================================
 
-# === CORE FRAMEWORK ===
+# === FASTAPI 0.104.1 STACK ===
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 starlette==0.27.0
 
-# === PYDANTIC COMPATIBLE ===
+# === PYDANTIC COMPATIBLE con FastAPI 0.104.1 ===
 pydantic==2.5.3
-pydantic-core==2.14.6  # ¡EXACTA que necesita pydantic 2.5.3!
+pydantic-core==2.14.6
 email-validator==2.1.0
-pydantic-settings==2.12.0
+# ¡NO pydantic-settings 2.12.0! Es incompatible
 
 # === DATABASE ===
 motor==3.7.1
 pymongo==4.15.5
 dnspython==2.8.0
 
-# === ASYNC (VERSIÓN COMPATIBLE) ===
-anyio==3.7.1  # FastAPI 0.104 requiere <4.0.0
+# === ASYNC ===
+anyio==3.7.1
 httpx==0.25.2
-httpcore==1.0.2
 
-# === PRODUCTION SERVER ===
+# === PRODUCTION ===
 gunicorn==21.2.0
 
 # === UTILITIES ===
