@@ -39,7 +39,7 @@ class CreateRemediationRequest(BaseModel):
 @router.post("/", status_code=201)
 async def create_remediation(
     request: CreateRemediationRequest,
-    remediation_service = Depends(get_remediation_service)
+    db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     El usuario marca que ya remedió una alerta.
@@ -51,7 +51,9 @@ async def create_remediation(
     """
     try:
         logger.info(f"🔵 Iniciando creación de remediación para alert_id={request.alert_id}")
-        logger.info(f"🔵 Request: {request.model_dump()}")
+        
+        # Obtener el servicio dentro de la función
+        remediation_service = get_remediation_service()
         
         result = await remediation_service.create_remediation(
             alert_id=request.alert_id,
