@@ -27,14 +27,14 @@ class AlertCreate(AlertBase):
     # 🆕 Campos opcionales con defaults - el router los llenará si no vienen
     first_seen: datetime | None = Field(None, description='First detection timestamp')
     last_seen: datetime | None = Field(None, description='Last seen timestamp')
+    created_at: datetime | None = Field(None)
+    updated_at: datetime | None = Field(None)
     lifecycle_history: list[dict[str, Any]] = Field(
         default_factory=list, description='Lifecycle event history'
     )
     reopen_count: int = Field(default=0, description='Number of times reopened')
     last_reopened_at: datetime | None = Field(None, description='Last reopened timestamp')
     version: int = Field(default=1, description='Version number')
-    created_at: datetime | None = Field(None, description='Creation timestamp')
-    updated_at: datetime | None = Field(None, description='Last update timestamp')
 
 
 class AlertUpdate(BaseModel):

@@ -36,7 +36,7 @@ async def create_alert(
         service = get_alert_service()
         
         # Convert Pydantic model to dict
-        alert_dict = alert_data.model_dump()
+        alert_dict = alert_data.model_dump(exclude_none=True)
         
         # Ensure timestamps are set
         now = datetime.utcnow()
