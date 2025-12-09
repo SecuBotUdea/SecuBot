@@ -50,6 +50,9 @@ async def create_remediation(
     - Ejecuta el gamificador (puntos/penalizaciones)
     """
     try:
+        logger.info(f"🔵 Iniciando creación de remediación para alert_id={request.alert_id}")
+        logger.info(f"🔵 Request: {request.model_dump()}")
+        
         result = await remediation_service.create_remediation(
             alert_id=request.alert_id,
             user_id=request.user_id,
@@ -57,13 +60,15 @@ async def create_remediation(
             team_id=request.team_id
         )
         
+        logger.info(f"✅ Remediación creada exitosamente: {result.get('remediation_id')}")
         return result
         
     except ValueError as e:
+        logger.warning(f"⚠️ Error de validación: {e}")
         raise HTTPException(status_code=400, detail=str(e))
         
     except Exception as e:
-        logger.error(f"Error al crear remediación: {e}")
+        logger.error(f"❌ Error al crear remediación: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
