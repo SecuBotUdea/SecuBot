@@ -8,11 +8,14 @@ En desarrollo/demo: Simula el rescan para testing
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Literal
+from typing import Dict, Any, Optional, Literal, List
 import random
 
 from app.database.mongodb import get_database
 from app.services.alert_service import get_alert_service
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RescanResult:
@@ -71,18 +74,6 @@ class RescanService:
         self.collection = self.db.rescan_results
         self.alert_service = get_alert_service()
         self.demo_mode = demo_mode
-        self._ensure_indexes()
-    
-    def _ensure_indexes(self):
-        """Crear índices estratégicos"""
-        try:
-            self.collection.create_index("alert_id")
-            self.collection.create_index("scan_timestamp")
-            self.collection.create_index([("alert_id", 1), ("scan_timestamp", -1)])
-            self.collection.create_index("present")
-            self.collection.create_index("signature_match")
-        except Exception as e:
-            print(f"Advertencia al crear índices de rescan: {e}")
     
     async def trigger_rescan(
         self,
@@ -105,7 +96,7 @@ class RescanService:
             ValueError: Si la alerta no existe
         """
         # 1. Validar que la alerta existe
-        alert = self.alert_service.get_alert(alert_id)
+        alert = await self.alert_service.get_alert(alert_id)
         if not alert:
             raise ValueError(f"Alerta {alert_id} no encontrada")
         
@@ -116,15 +107,15 @@ class RescanService:
             result = await self._perform_real_rescan(alert)
         
         # 3. Persistir el resultado
-        self._save_rescan_result(result, triggered_by)
+        await self._save_rescan_result(result, triggered_by)
         
         # 4. Actualizar last_seen de la alerta si sigue presente
         if result.present:
-            self.alert_service.update_last_seen(alert_id)
+            await self.alert_service.update_last_seen(alert_id)
         
         # 5. TODO: Disparar evento al RuleEngine
         # from app.rule_engine.engine import process_event
-        # process_event("rescan_completed", {
+        # await process_event("rescan_completed", {
         #     "alert": alert,
         #     "rescan_result": result.to_dict(),
         #     "triggered_by": triggered_by
@@ -136,18 +127,25 @@ class RescanService:
         """
         Simular un re-escaneo para modo demo.
         
-        Lógica de simulación:
-        - Si status = "open" o "reopened" → 80% probabilidad de estar presente
-        - Si status = "closed" → 20% probabilidad de estar presente (falso positivo)
-        - Si present = True → 95% probabilidad de signature_match
+        NUEVA LÓGICA (simulada):
+        - 80% probabilidad: reopen_count se mantiene igual → REMEDIADA
+        - 20% probabilidad: reopen_count aumenta → REAPARECE
         """
         now = datetime.now(timezone.utc)
         
-        # Determinar si la vulnerabilidad está presente
-        if alert["status"] in ["open", "reopened"]:
-            present = random.random() < 0.80  # 80% presente
-        else:  # closed
-            present = random.random() < 0.20  # 20% reapertura
+        local_reopen_count = alert.get("reopen_count", 0)
+        
+        # Simular si la vulnerabilidad reaparece
+        vulnerability_reappears = random.random() < 0.20  # 20% reaparece
+        
+        if vulnerability_reappears:
+            # Simular que el normalizador detectó la vuln de nuevo
+            present = True
+            simulated_normalizer_reopen_count = local_reopen_count + 1
+        else:
+            # Vulnerabilidad fue remediada
+            present = False
+            simulated_normalizer_reopen_count = local_reopen_count
         
         # Si está presente, verificar coincidencia de firma
         signature_match = False
@@ -161,7 +159,10 @@ class RescanService:
             "alert_status": alert["status"],
             "alert_severity": alert["severity"],
             "component": alert.get("component", "unknown"),
-            "scan_duration_ms": random.randint(500, 3000)
+            "scan_duration_ms": random.randint(500, 3000),
+            "local_reopen_count": local_reopen_count,
+            "simulated_normalizer_reopen_count": simulated_normalizer_reopen_count,
+            "vulnerability_reappears": vulnerability_reappears
         }
         
         return RescanResult(
@@ -177,14 +178,21 @@ class RescanService:
         """
         Ejecutar un re-escaneo real consultando al normalizador externo.
         
+        LÓGICA CORRECTA:
+        - El normalizador SIEMPRE retorna la alerta (existe en su BD)
+        - Si normalizer.reopen_count > alert.reopen_count → Vulnerabilidad REAPARECE
+        - Si normalizer.reopen_count == alert.reopen_count → Vulnerabilidad REMEDIADA
+        
         En producción, hace un GET a:
         https://parser-dependabot.vercel.app/alerts/{alert_id}
         
         Respuesta esperada:
         {
-            "found": true/false,
+            "alert_id": "...",
             "signature": "sha256:...",
+            "reopen_count": 2,  # ← ESTE ES EL CAMPO CRÍTICO
             "last_seen": "2025-12-08T10:00:00Z",
+            "status": "reopened",
             ...
         }
         """
@@ -195,23 +203,34 @@ class RescanService:
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=10) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     if response.status == 404:
-                        # Vulnerabilidad no encontrada = fue remediada
-                        return RescanResult(
-                            alert_id=alert["alert_id"],
-                            present=False,
-                            signature_match=False,
-                            scan_timestamp=now,
-                            scanner_version="normalizer-v1.0",
-                            metadata={
-                                "http_status": 404,
-                                "message": "Alert not found in normalizer"
-                            }
-                        )
+                        # Alerta no existe en el normalizador = ERROR del sistema
+                        logger.error(f"Alert {alert['alert_id']} not found in normalizer")
+                        raise Exception("Alert not found in normalizer database")
                     
                     if response.status == 200:
                         data = await response.json()
+                        
+                        # Obtener reopen_count de ambos lados
+                        local_reopen_count = alert.get("reopen_count", 0)
+                        normalizer_reopen_count = data.get("reopen_count", 0)
+                        
+                        # LÓGICA CRÍTICA: Comparar reopen_count
+                        if normalizer_reopen_count > local_reopen_count:
+                            # La vulnerabilidad REAPARECE (el normalizador la detectó de nuevo)
+                            present = True
+                            logger.info(
+                                f"Alert {alert['alert_id']} REAPARECE: "
+                                f"local={local_reopen_count}, normalizer={normalizer_reopen_count}"
+                            )
+                        else:
+                            # reopen_count igual = La vulnerabilidad fue REMEDIADA
+                            present = False
+                            logger.info(
+                                f"Alert {alert['alert_id']} REMEDIADA: "
+                                f"reopen_count={local_reopen_count} (sin cambios)"
+                            )
                         
                         # Verificar si la firma coincide
                         signature_match = (
@@ -220,25 +239,29 @@ class RescanService:
                         
                         return RescanResult(
                             alert_id=alert["alert_id"],
-                            present=True,
+                            present=present,
                             signature_match=signature_match,
                             scan_timestamp=now,
                             scanner_version="normalizer-v1.0",
                             metadata={
                                 "http_status": 200,
+                                "local_reopen_count": local_reopen_count,
+                                "normalizer_reopen_count": normalizer_reopen_count,
+                                "reopen_count_delta": normalizer_reopen_count - local_reopen_count,
                                 "normalizer_response": data
                             }
                         )
                     
                     # Otros status codes = error
-                    raise Exception(f"HTTP {response.status}: {await response.text()}")
+                    error_text = await response.text()
+                    raise Exception(f"HTTP {response.status}: {error_text}")
         
         except Exception as e:
             # En caso de error, fallback a simulación
-            print(f"Error en rescan real: {e}. Usando simulación como fallback.")
+            logger.warning(f"Error en rescan real: {e}. Usando simulación como fallback.")
             return self._simulate_rescan(alert)
     
-    def _save_rescan_result(
+    async def _save_rescan_result(
         self,
         result: RescanResult,
         triggered_by: Optional[str] = None
@@ -248,13 +271,13 @@ class RescanService:
         result_doc["triggered_by"] = triggered_by
         result_doc["created_at"] = datetime.now(timezone.utc)
         
-        self.collection.insert_one(result_doc)
+        await self.collection.insert_one(result_doc)
     
-    def get_latest_rescan(self, alert_id: str) -> Optional[Dict[str, Any]]:
+    async def get_latest_rescan(self, alert_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtener el resultado del último rescan de una alerta.
         """
-        result = self.collection.find_one(
+        result = await self.collection.find_one(
             {"alert_id": alert_id},
             sort=[("scan_timestamp", -1)]
         )
@@ -264,11 +287,11 @@ class RescanService:
         
         return result
     
-    def get_rescan_history(
+    async def get_rescan_history(
         self,
         alert_id: str,
         limit: int = 10
-    ) -> list[Dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Obtener historial de rescans de una alerta.
         """
@@ -277,13 +300,13 @@ class RescanService:
         ).sort("scan_timestamp", -1).limit(limit)
         
         results = []
-        for result in cursor:
+        async for result in cursor:
             result["_id"] = str(result["_id"])
             results.append(result)
         
         return results
     
-    def verify_remediation(
+    async def verify_remediation(
         self,
         alert_id: str,
         expected_result: Literal["present", "absent"] = "absent"
@@ -298,7 +321,7 @@ class RescanService:
         Returns:
             Dict con resultado de la verificación
         """
-        latest = self.get_latest_rescan(alert_id)
+        latest = await self.get_latest_rescan(alert_id)
         
         if not latest:
             return {
@@ -328,7 +351,7 @@ class RescanService:
                 "reason": "Vulnerability confirmed present" if success else "Vulnerability not found"
             }
     
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """Obtener estadísticas de rescans"""
         pipeline = [
             {
@@ -348,7 +371,8 @@ class RescanService:
             }
         ]
         
-        result = list(self.collection.aggregate(pipeline))
+        cursor = self.collection.aggregate(pipeline)
+        result = await cursor.to_list(length=None)
         
         if result:
             stats = result[0]
@@ -378,9 +402,9 @@ class RescanService:
             "persistence_rate": 0.0
         }
     
-    def bulk_rescan_alerts(
+    async def bulk_rescan_alerts(
         self,
-        alert_ids: list[str],
+        alert_ids: List[str],
         triggered_by: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -390,6 +414,8 @@ class RescanService:
         Returns:
             Resumen con resultados agregados
         """
+        import asyncio
+        
         results = {
             "total": len(alert_ids),
             "successful": 0,
@@ -399,27 +425,29 @@ class RescanService:
             "errors": []
         }
         
-        for alert_id in alert_ids:
-            try:
-                # Nota: En producción usar asyncio.gather para paralelizar
-                import asyncio
-                result = asyncio.run(
-                    self.trigger_rescan(alert_id, triggered_by)
-                )
-                
-                results["successful"] += 1
-                
-                if result.present:
-                    results["present"] += 1
-                else:
-                    results["absent"] += 1
-                
-            except Exception as e:
+        # Crear tareas para paralelizar
+        tasks = [
+            self.trigger_rescan(alert_id, triggered_by)
+            for alert_id in alert_ids
+        ]
+        
+        # Ejecutar en paralelo con manejo de errores
+        scan_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for alert_id, result in zip(alert_ids, scan_results):
+            if isinstance(result, Exception):
                 results["failed"] += 1
                 results["errors"].append({
                     "alert_id": alert_id,
-                    "error": str(e)
+                    "error": str(result)
                 })
+            else:
+                results["successful"] += 1
+                
+                if result.present: # type: ignore
+                    results["present"] += 1
+                else:
+                    results["absent"] += 1
         
         return results
 

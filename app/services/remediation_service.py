@@ -22,12 +22,15 @@ Flujo completo:
 
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
+from uuid import uuid4
 
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 from app.services.alert_service import get_alert_service
 from app.services.rescan_service import get_rescan_service
-
 from app.engines.rule_engine import RuleEngine
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RemediationService:
@@ -45,23 +48,8 @@ class RemediationService:
         self.collection = self.db.remediations
         self.alert_service = get_alert_service()
         self.rescan_service = get_rescan_service(demo_mode=True)
-        self._ensure_indexes()
     
-    def _ensure_indexes(self):
-        """Crear índices estratégicos"""
-        try:
-            self.collection.create_index("remediation_id", unique=True)
-            self.collection.create_index("alert_id")
-            self.collection.create_index("user_id")
-            self.collection.create_index("team_id")
-            self.collection.create_index("status")
-            self.collection.create_index("action_ts")
-            self.collection.create_index([("alert_id", 1), ("action_ts", -1)])
-            self.collection.create_index([("user_id", 1), ("action_ts", -1)])
-        except Exception as e:
-            print(f"Advertencia al crear índices de remediations: {e}")
-    
-    def create_remediation(
+    async def create_remediation(
         self,
         alert_id: str,
         user_id: str,
@@ -90,7 +78,7 @@ class RemediationService:
             ValueError: Si la alerta no existe
         """
         # 1. Validar que la alerta existe
-        alert = self.alert_service.get_alert(alert_id)
+        alert = await self.alert_service.get_alert(alert_id)
         if not alert:
             raise ValueError(f"Alerta {alert_id} no encontrada")
         
@@ -119,11 +107,11 @@ class RemediationService:
         }
         
         # 4. Insertar en MongoDB
-        result = self.collection.insert_one(remediation_doc)
+        result = await self.collection.insert_one(remediation_doc)
         remediation_doc["_id"] = str(result.inserted_id)
         
         # 5. Actualizar status de la alerta a "pending_verification"
-        self.alert_service.update_status(
+        await self.alert_service.update_status(
             alert_id,
             "pending_verification",
             event_metadata={
@@ -136,16 +124,13 @@ class RemediationService:
         # 6. Disparar rescan automático si está habilitado
         if auto_trigger_rescan:
             try:
-                import asyncio
-                rescan_result = asyncio.run(
-                    self.rescan_service.trigger_rescan(
-                        alert_id,
-                        triggered_by=user_id
-                    )
+                rescan_result = await self.rescan_service.trigger_rescan(
+                    alert_id,
+                    triggered_by=user_id
                 )
                 
                 # 7. Procesar resultado del rescan (INVOCA RULEENGINE)
-                gamification_result = self.process_rescan_result(
+                gamification_result = await self.process_rescan_result(
                     remediation_doc,
                     rescan_result.to_dict()
                 )
@@ -154,7 +139,7 @@ class RemediationService:
                 remediation_doc["gamification_result"] = gamification_result
                 
             except Exception as e:
-                print(f"Error al disparar rescan automático: {e}")
+                logger.error(f"Error al disparar rescan automático: {e}")
                 remediation_doc["rescan_triggered"] = False
                 remediation_doc["rescan_error"] = str(e)
         else:
@@ -162,7 +147,7 @@ class RemediationService:
         
         return remediation_doc
     
-    def process_rescan_result(
+    async def process_rescan_result(
         self,
         remediation: Dict[str, Any],
         rescan_result: Dict[str, Any]
@@ -187,12 +172,11 @@ class RemediationService:
             Resultado del RuleEngine (puntos otorgados, badges, etc.)
         """
         # 1. Obtener alerta completa
-        alert = self.alert_service.get_alert(remediation["alert_id"])
+        alert = await self.alert_service.get_alert(remediation["alert_id"])
         if not alert:
             raise ValueError(f"Alerta {remediation['alert_id']} no encontrada")
         
         # 2. Construir contexto para el RuleEngine
-        # El RuleEngine espera este formato específico
         context = {
             "Alert": alert,
             "Remediation": remediation,
@@ -201,19 +185,11 @@ class RemediationService:
         }
         
         # 3. INVOCAR AL RULEENGINE 🔥
-        # Aquí se evalúan las reglas y se otorgan puntos
         engine = RuleEngine(self.db)
+        result = await engine.process_event("rescan_completed", context)
         
-        result = engine.process_event("rescan_completed", context)
-        assert result is not None and isinstance(result, dict)
-        
-        # El resultado contiene:
-        # - rules_evaluated: int
-        # - rules_triggered: int
-        # - points_awarded: List[dict]  # Transacciones de puntos positivos
-        # - penalties_applied: List[dict]  # Penalizaciones
-        # - badges_awarded: List[dict]  # Badges otorgados
-        # - exclusions: List[dict]  # Si fue excluida
+        if not result or not isinstance(result, dict):
+            raise ValueError("RuleEngine returned invalid result")
         
         # 4. Actualizar estado de la remediación según resultado
         if rescan_result["present"]:
@@ -226,7 +202,7 @@ class RemediationService:
             alert_new_status = "verified_resolved"
         
         # 5. Actualizar remediación
-        self.collection.update_one(
+        await self.collection.update_one(
             {"remediation_id": remediation["remediation_id"]},
             {
                 "$set": {
@@ -239,7 +215,7 @@ class RemediationService:
         )
         
         # 6. Actualizar alerta
-        self.alert_service.update_status(
+        await self.alert_service.update_status(
             alert["alert_id"],
             alert_new_status,
             event_metadata={
@@ -251,14 +227,14 @@ class RemediationService:
         
         return result
     
-    def get_remediation(self, remediation_id: str) -> Optional[Dict[str, Any]]:
+    async def get_remediation(self, remediation_id: str) -> Optional[Dict[str, Any]]:
         """Obtener una remediación por ID"""
-        remediation = self.collection.find_one({"remediation_id": remediation_id})
+        remediation = await self.collection.find_one({"remediation_id": remediation_id})
         if remediation:
             remediation["_id"] = str(remediation["_id"])
         return remediation
     
-    def get_remediations_by_alert(self, alert_id: str) -> List[Dict[str, Any]]:
+    async def get_remediations_by_alert(self, alert_id: str) -> List[Dict[str, Any]]:
         """
         Obtener todas las remediaciones de una alerta.
         Útil para ver historial de intentos.
@@ -268,13 +244,13 @@ class RemediationService:
         ).sort("action_ts", -1)
         
         remediations = []
-        for rem in cursor:
+        async for rem in cursor:
             rem["_id"] = str(rem["_id"])
             remediations.append(rem)
         
         return remediations
     
-    def get_remediations_by_user(
+    async def get_remediations_by_user(
         self,
         user_id: str,
         status: Optional[str] = None,
@@ -290,13 +266,13 @@ class RemediationService:
         cursor = self.collection.find(query).sort("action_ts", -1).limit(limit)
         
         remediations = []
-        for rem in cursor:
+        async for rem in cursor:
             rem["_id"] = str(rem["_id"])
             remediations.append(rem)
         
         return remediations
     
-    def get_pending_remediations(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_pending_remediations(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Obtener remediaciones pendientes de verificación.
         Útil para el timeout checker (Fase 5).
@@ -306,13 +282,13 @@ class RemediationService:
         ).sort("action_ts", 1).limit(limit)  # Más antiguas primero
         
         remediations = []
-        for rem in cursor:
+        async for rem in cursor:
             rem["_id"] = str(rem["_id"])
             remediations.append(rem)
         
         return remediations
     
-    def manual_verify_remediation(
+    async def manual_verify_remediation(
         self,
         remediation_id: str,
         verified_by: str,
@@ -332,14 +308,14 @@ class RemediationService:
         Returns:
             Remediación actualizada
         """
-        remediation = self.get_remediation(remediation_id)
+        remediation = await self.get_remediation(remediation_id)
         if not remediation:
             raise ValueError(f"Remediación {remediation_id} no encontrada")
         
         new_status = "verified_success" if success else "failed_verification"
         
         # Actualizar remediación
-        self.collection.update_one(
+        await self.collection.update_one(
             {"remediation_id": remediation_id},
             {
                 "$set": {
@@ -355,7 +331,7 @@ class RemediationService:
         
         # Actualizar alerta
         alert_status = "verified_resolved" if success else "verified_persists"
-        self.alert_service.update_status(
+        await self.alert_service.update_status(
             remediation["alert_id"],
             alert_status,
             event_metadata={
@@ -366,12 +342,14 @@ class RemediationService:
         
         # TODO: Disparar evento al RuleEngine si success=True
         # Para que otorgue puntos por remediación verificada manualmente
-        getRemediationResult = self.get_remediation(remediation_id)
-        assert getRemediationResult is not None
         
-        return getRemediationResult
+        updated_remediation = await self.get_remediation(remediation_id)
+        if not updated_remediation:
+            raise ValueError(f"Failed to retrieve updated remediation {remediation_id}")
+        
+        return updated_remediation
     
-    def trigger_rescan_for_remediation(
+    async def trigger_rescan_for_remediation(
         self,
         remediation_id: str,
         triggered_by: Optional[str] = None
@@ -386,23 +364,20 @@ class RemediationService:
         Returns:
             Resultado del RuleEngine después de procesar el rescan
         """
-        remediation = self.get_remediation(remediation_id)
+        remediation = await self.get_remediation(remediation_id)
         if not remediation:
             raise ValueError(f"Remediación {remediation_id} no encontrada")
         
         # Disparar rescan
-        import asyncio
-        rescan_result = asyncio.run(
-            self.rescan_service.trigger_rescan(
-                remediation["alert_id"],
-                triggered_by=triggered_by or remediation["user_id"]
-            )
+        rescan_result = await self.rescan_service.trigger_rescan(
+            remediation["alert_id"],
+            triggered_by=triggered_by or remediation["user_id"]
         )
         
         # Procesar resultado con RuleEngine
-        return self.process_rescan_result(remediation, rescan_result.to_dict())
+        return await self.process_rescan_result(remediation, rescan_result.to_dict())
     
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """Obtener estadísticas de remediaciones"""
         pipeline = [
             {
@@ -422,7 +397,8 @@ class RemediationService:
             }
         ]
         
-        result = list(self.collection.aggregate(pipeline))
+        cursor = self.collection.aggregate(pipeline)
+        result = await cursor.to_list(length=None)
         
         if result:
             stats = result[0]
@@ -454,7 +430,6 @@ class RemediationService:
     
     def _generate_remediation_id(self) -> str:
         """Generar ID único para remediación"""
-        from uuid import uuid4
         return f"rem_{uuid4().hex[:12]}"
 
 
