@@ -6,16 +6,15 @@ Este es el corazón del sistema de gamificación verificada.
 
 Responsabilidades:
 - Registrar cuando un usuario marca una alerta como resuelta
-- Coordinar con rescan_service para verificar la remediación
+- Coordinar con RescanService para verificar la remediación
 - INVOCAR AL RULEENGINE después del rescan (AQUÍ PASA LA MAGIA 🎯)
-- Manejar penalizaciones por timeouts
-- Gestionar reaperturas de alertas
+- Actualizar estados de alert y remediation según resultado
 
 Flujo completo:
 1. Usuario dice "Resolví esta vulnerabilidad"
 2. create_remediation() → guarda en BD con status="pending"
-3. Dispara rescan automático
-4. process_rescan_result() → INVOCA RULEENGINE 🔥
+3. Dispara rescan automático (RescanService.check_alert_exists)
+4. process_rescan_result() → INVOCA GAMIFICATIONSERVICE.process_event() 🔥
 5. RuleEngine otorga puntos o penaliza
 6. Actualiza estados de alert y remediation
 """
@@ -27,7 +26,7 @@ from uuid import uuid4
 from app.database.mongodb import get_database
 from app.services.alert_service import get_alert_service
 from app.services.rescan_service import get_rescan_service
-from app.engines.rule_engine import RuleEngine
+from app.services.gamification_service import get_gamification_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,15 +38,16 @@ class RemediationService:
     
     Este servicio es el PUENTE entre:
     - Las acciones del usuario (marcar como resuelta)
-    - El rescan de verificación
-    - El RuleEngine (gamificación)
+    - El rescan de verificación (RescanService)
+    - La gamificación (GamificationService → RuleEngine)
     """
     
     def __init__(self):
         self.db = get_database()
         self.collection = self.db.remediations
         self.alert_service = get_alert_service()
-        self.rescan_service = get_rescan_service(demo_mode=True)
+        self.rescan_service = get_rescan_service()
+        self.gamification_service = get_gamification_service()
     
     async def create_remediation(
         self,
@@ -75,7 +75,7 @@ class RemediationService:
             Dict con la remediación creada
             
         Raises:
-            ValueError: Si la alerta no existe
+            ValueError: Si la alerta no existe o no está abierta
         """
         # 1. Validar que la alerta existe
         alert = await self.alert_service.get_alert(alert_id)
@@ -124,18 +124,20 @@ class RemediationService:
         # 6. Disparar rescan automático si está habilitado
         if auto_trigger_rescan:
             try:
-                rescan_result = await self.rescan_service.trigger_rescan(
-                    alert_id,
-                    triggered_by=user_id
+                # Usar RescanService para verificar si la vulnerabilidad aún existe
+                rescan_result = await self.rescan_service.check_alert_exists(
+                    alert_id=alert_id,
+                    local_reopen_count=alert.get("reopen_count", 0)
                 )
                 
-                # 7. Procesar resultado del rescan (INVOCA RULEENGINE)
+                # 7. Procesar resultado del rescan (INVOCA GAMIFICATIONSERVICE)
                 gamification_result = await self.process_rescan_result(
                     remediation_doc,
                     rescan_result.to_dict()
                 )
                 
                 remediation_doc["rescan_triggered"] = True
+                remediation_doc["rescan_result"] = rescan_result.to_dict()
                 remediation_doc["gamification_result"] = gamification_result
                 
             except Exception as e:
@@ -153,14 +155,14 @@ class RemediationService:
         rescan_result: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Procesar resultado de rescan e INVOCAR AL RULEENGINE.
+        Procesar resultado de rescan e INVOCAR AL GAMIFICATIONSERVICE.
         
         🎯 AQUÍ ES DONDE SUCEDE LA MAGIA 🎯
         
         Este método:
-        1. Obtiene la alerta y la remediación
+        1. Obtiene la alerta completa
         2. Construye el contexto para el RuleEngine
-        3. Invoca RuleEngine.process_event("rescan_completed")
+        3. Invoca GamificationService.process_event("rescan_completed")
         4. El RuleEngine evalúa reglas y otorga puntos/penalizaciones
         5. Actualiza estados según el resultado
         
@@ -184,31 +186,36 @@ class RemediationService:
             "current_time": datetime.now(timezone.utc)
         }
         
-        # 3. INVOCAR AL RULEENGINE 🔥
-        engine = RuleEngine(self.db)
-        result = await engine.process_event("rescan_completed", context)
+        # 3. INVOCAR AL GAMIFICATIONSERVICE → RULEENGINE 🔥
+        result = await self.gamification_service.process_event("rescan_completed", context)
         
         if not result or not isinstance(result, dict):
-            raise ValueError("RuleEngine returned invalid result")
+            raise ValueError("GamificationService returned invalid result")
         
-        # 4. Actualizar estado de la remediación según resultado
-        if rescan_result["present"]:
-            # Vulnerabilidad AÚN PRESENTE = Falsa remediación
-            new_status = "failed_verification"
-            alert_new_status = "verified_persists"
+        # 4. Determinar nuevos estados según resultado del rescan
+        if rescan_result["still_exists"]:
+            # Vulnerabilidad AÚN EXISTE = Falsa remediación
+            new_remediation_status = "failed_verification"
+            new_alert_status = "verified_persists"
         else:
-            # Vulnerabilidad AUSENTE = Remediación exitosa
-            new_status = "verified_success"
-            alert_new_status = "verified_resolved"
+            # Vulnerabilidad NO EXISTE = Remediación exitosa
+            new_remediation_status = "verified_success"
+            new_alert_status = "verified_resolved"
         
         # 5. Actualizar remediación
         await self.collection.update_one(
             {"remediation_id": remediation["remediation_id"]},
             {
                 "$set": {
-                    "status": new_status,
+                    "status": new_remediation_status,
                     "verification_ts": datetime.now(timezone.utc),
-                    "rescan_result_ref": rescan_result.get("_id"),
+                    "rescan_result": rescan_result,
+                    "gamification_result": {
+                        "rules_triggered": result["rules_triggered"],
+                        "points_awarded": result["points_awarded"],
+                        "penalties_applied": result["penalties_applied"],
+                        "badges_awarded": result["badges_awarded"]
+                    },
                     "updated_at": datetime.now(timezone.utc)
                 }
             }
@@ -217,12 +224,20 @@ class RemediationService:
         # 6. Actualizar alerta
         await self.alert_service.update_status(
             alert["alert_id"],
-            alert_new_status,
+            new_alert_status,
             event_metadata={
                 "remediation_id": remediation["remediation_id"],
-                "rescan_present": rescan_result["present"],
+                "still_exists": rescan_result["still_exists"],
+                "reopen_count_changed": rescan_result["reopen_count_changed"],
                 "rules_triggered": result["rules_triggered"]
             }
+        )
+        
+        logger.info(
+            f"Remediación {remediation['remediation_id']} procesada: "
+            f"status={new_remediation_status}, "
+            f"rules_triggered={result['rules_triggered']}, "
+            f"points_awarded={len(result['points_awarded'])}"
         )
         
         return result
@@ -239,14 +254,12 @@ class RemediationService:
         Obtener todas las remediaciones de una alerta.
         Útil para ver historial de intentos.
         """
-        cursor = self.collection.find(
+        remediations = await self.collection.find(
             {"alert_id": alert_id}
-        ).sort("action_ts", -1)
+        ).sort("action_ts", -1).to_list(length=None)
         
-        remediations = []
-        async for rem in cursor:
+        for rem in remediations:
             rem["_id"] = str(rem["_id"])
-            remediations.append(rem)
         
         return remediations
     
@@ -256,98 +269,31 @@ class RemediationService:
         status: Optional[str] = None,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """
-        Obtener remediaciones de un usuario.
-        """
+        """Obtener remediaciones de un usuario"""
         query = {"user_id": user_id}
         if status:
             query["status"] = status
         
-        cursor = self.collection.find(query).sort("action_ts", -1).limit(limit)
+        remediations = await self.collection.find(query).sort("action_ts", -1).limit(limit).to_list(length=limit)
         
-        remediations = []
-        async for rem in cursor:
+        for rem in remediations:
             rem["_id"] = str(rem["_id"])
-            remediations.append(rem)
         
         return remediations
     
     async def get_pending_remediations(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Obtener remediaciones pendientes de verificación.
-        Útil para el timeout checker (Fase 5).
+        Útil para el timeout checker.
         """
-        cursor = self.collection.find(
+        remediations = await self.collection.find(
             {"status": "pending"}
-        ).sort("action_ts", 1).limit(limit)  # Más antiguas primero
+        ).sort("action_ts", 1).limit(limit).to_list(length=limit)
         
-        remediations = []
-        async for rem in cursor:
+        for rem in remediations:
             rem["_id"] = str(rem["_id"])
-            remediations.append(rem)
         
         return remediations
-    
-    async def manual_verify_remediation(
-        self,
-        remediation_id: str,
-        verified_by: str,
-        success: bool,
-        notes: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Verificación manual de remediación (sin rescan).
-        Para casos especiales donde el admin verifica manualmente.
-        
-        Args:
-            remediation_id: ID de la remediación
-            verified_by: ID del admin que verifica
-            success: True si fue exitosa, False si falló
-            notes: Notas de la verificación
-            
-        Returns:
-            Remediación actualizada
-        """
-        remediation = await self.get_remediation(remediation_id)
-        if not remediation:
-            raise ValueError(f"Remediación {remediation_id} no encontrada")
-        
-        new_status = "verified_success" if success else "failed_verification"
-        
-        # Actualizar remediación
-        await self.collection.update_one(
-            {"remediation_id": remediation_id},
-            {
-                "$set": {
-                    "status": new_status,
-                    "verification_ts": datetime.now(timezone.utc),
-                    "verified_by": verified_by,
-                    "verification_type": "manual",
-                    "verification_notes": notes or "",
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
-        
-        # Actualizar alerta
-        alert_status = "verified_resolved" if success else "verified_persists"
-        await self.alert_service.update_status(
-            remediation["alert_id"],
-            alert_status,
-            event_metadata={
-                "verification_type": "manual",
-                "verified_by": verified_by
-            }
-        )
-        
-        # TODO: Disparar evento al RuleEngine si success=True
-        # Para que otorgue puntos por remediación verificada manualmente
-        
-        updated_remediation = await self.get_remediation(remediation_id)
-        if not updated_remediation:
-            raise ValueError(f"Failed to retrieve updated remediation {remediation_id}")
-        
-        return updated_remediation
     
     async def trigger_rescan_for_remediation(
         self,
@@ -368,13 +314,18 @@ class RemediationService:
         if not remediation:
             raise ValueError(f"Remediación {remediation_id} no encontrada")
         
-        # Disparar rescan
-        rescan_result = await self.rescan_service.trigger_rescan(
-            remediation["alert_id"],
-            triggered_by=triggered_by or remediation["user_id"]
+        # Obtener alerta para acceder al reopen_count
+        alert = await self.alert_service.get_alert(remediation["alert_id"])
+        if not alert:
+            raise ValueError(f"Alerta {remediation['alert_id']} no encontrada")
+        
+        # Disparar rescan usando RescanService
+        rescan_result = await self.rescan_service.check_alert_exists(
+            alert_id=alert["alert_id"],
+            local_reopen_count=alert.get("reopen_count", 0)
         )
         
-        # Procesar resultado con RuleEngine
+        # Procesar resultado con GamificationService
         return await self.process_rescan_result(remediation, rescan_result.to_dict())
     
     async def get_stats(self) -> Dict[str, Any]:
@@ -397,8 +348,7 @@ class RemediationService:
             }
         ]
         
-        cursor = self.collection.aggregate(pipeline)
-        result = await cursor.to_list(length=None)
+        result = await self.collection.aggregate(pipeline).to_list(length=1)
         
         if result:
             stats = result[0]
@@ -433,7 +383,7 @@ class RemediationService:
         return f"rem_{uuid4().hex[:12]}"
 
 
-# Singleton global para uso en toda la aplicación
+# Singleton global
 _remediation_service_instance = None
 
 
