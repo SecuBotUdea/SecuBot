@@ -1,0 +1,124 @@
+[project]
+name = "secubot"
+version = "1.0.0"
+description = "Sistema de gamificación verificada para DevSecOps"
+authors = [
+    { name = "Camilo Aguirre", email = "bcamilo.aguirre@udea.edu.co" },
+    { name = "Luis Cruz", email = "jose.cruz1@udea.edu.co" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # Core Framework
+    "fastapi>=0.124.0",
+    "uvicorn[standard]>=0.24.0",
+    
+    # Database
+    "motor>=3.3.2",              # MongoDB async driver
+    "pymongo>=4.6.0",            # MongoDB sync (para scripts)
+    
+    # Data Validation & Settings
+    "pydantic>=2.5.0",
+    "pydantic[email]>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    
+    # Task Scheduling
+    "APScheduler>=3.10.4",
+    
+    # Configuration
+    "pyyaml>=6.0.1",
+    
+    # HTTP Client
+    "httpx>=0.25.2",
+    
+    # Utilities
+    "python-dateutil>=2.8.2",
+    "pydantic[email]==2.5.3",
+
+    "pymongo",
+    "aiohttp",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    
+    # Code Quality
+    "pre-commit>=3.5.0",
+    "ruff>=0.1.6",               # Linter y formatter moderno
+    "mypy>=1.7.0",               # Type checking
+    
+    # Development Tools
+    "ipython>=8.18.0",           # Better REPL
+    "watchfiles>=0.21.0",        # Hot reload
+]
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ⚠️ CRÍTICO: Configuración de paquetes para setuptools
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "config*"]
+exclude = ["tests*", "scripts*", "docs*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+addopts = [
+    "--cov=app",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "-v",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+lint.select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+lint.ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Unused imports in __init__.py
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "motor.*",
+    "pymongo.*",
+    "apscheduler.*",
+]
+ignore_missing_imports = true
