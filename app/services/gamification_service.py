@@ -13,7 +13,7 @@ Responsable de:
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from app.database.connection import get_database
+from app.database.mongodb import get_database
 # Importar el RuleEngine cuando esté disponible
 # from app.rule_engine.point_calculator import PointCalculator
 # from app.rule_engine.badge_evaluator import BadgeEvaluator
