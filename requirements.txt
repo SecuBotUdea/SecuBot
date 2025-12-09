@@ -1,61 +1,37 @@
 # ============================================
-# requirements.txt PARA RENDER - GARANTIZADO
+# requirements.txt FUNCIONAL PARA RENDER
 # ============================================
+# Elimina TODOS los requirements anteriores y usa SOLO estos
 
 # === CORE FRAMEWORK ===
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 starlette==0.27.0
 
-# === PYDANTIC (sin conflictos) ===
+# === PYDANTIC COMPATIBLE ===
 pydantic==2.5.3
+pydantic-core==2.14.6  # ¡EXACTA que necesita pydantic 2.5.3!
 email-validator==2.1.0
 pydantic-settings==2.12.0
-pydantic-core==2.14.5
 
 # === DATABASE ===
 motor==3.7.1
 pymongo==4.15.5
 dnspython==2.8.0
 
-# === ASYNC (VERSIÓN CRÍTICA - FastAPI 0.104 requiere <4.0) ===
-anyio==3.7.1
+# === ASYNC (VERSIÓN COMPATIBLE) ===
+anyio==3.7.1  # FastAPI 0.104 requiere <4.0.0
 httpx==0.25.2
 httpcore==1.0.2
-h11==0.14.0
 
-# === SCHEDULING & TASKS ===
-APScheduler==3.10.4
-python-dateutil==2.8.2
-tzlocal==5.2
-pytz==2023.3.post1
+# === PRODUCTION SERVER ===
+gunicorn==21.2.0
 
 # === UTILITIES ===
 python-dotenv==1.0.0
 PyYAML==6.0.1
 click==8.1.7
-Jinja2==3.1.3
-MarkupSafe==2.1.3
-
-# === PRODUCTION SERVER ===
-gunicorn==21.2.0
 
 # === TYPING ===
 typing-extensions==4.8.0
 annotated-types==0.6.0
-
-# === HTTP CLIENT ===
-aiohttp==3.9.1
-aiohappyeyeballs==2.4.0
-aiosignal==1.3.1
-async-timeout==4.0.3
-attrs==23.1.0
-charset-normalizer==3.3.2
-frozenlist==1.4.0
-idna==3.4
-multidict==6.0.4
-urllib3==2.0.7
-yarl==1.9.4
-
-# === WEBSOCKETS ===
-websockets==12.0
