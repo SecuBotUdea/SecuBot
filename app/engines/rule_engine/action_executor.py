@@ -89,7 +89,13 @@ class ActionExecutor:
             "txn_id": txn["txn_id"],
             "points": points,
             "user_id": user_id,
-            "reason": reason
+            "team_id": team_id,
+            "rule_id": rule_id,
+            "reason": reason,
+            "timestamp": txn["timestamp"],
+            "evidence_refs": txn["evidence_refs"],
+            "alert_id": txn.get("alert_id"),
+            "inserted": bool(result.inserted_id)  # ✅ Confirmar inserción
         }
     
     async def execute_penalty(
