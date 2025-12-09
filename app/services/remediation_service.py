@@ -127,7 +127,8 @@ class RemediationService:
                 # Usar RescanService para verificar si la vulnerabilidad aún existe
                 rescan_result = await self.rescan_service.check_alert_exists(
                     alert_id=alert_id,
-                    local_reopen_count=alert.get("reopen_count", 0)
+                    local_reopen_count=alert.get("reopen_count", 0),
+                    remediation_id=remediation_doc["remediation_id"]
                 )
                 
                 # 7. Procesar resultado del rescan (INVOCA GAMIFICATIONSERVICE)
