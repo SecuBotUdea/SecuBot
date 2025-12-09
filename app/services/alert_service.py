@@ -55,10 +55,7 @@ class AlertService:
         # 4. Insertar en MongoDB
         result = await self.collection.insert_one(alert_dict)
         alert_dict["_id"] = str(result.inserted_id)
-        
-        # 5. TODO: Disparar evento al RuleEngine
-        # from app.rule_engine.engine import process_event
-        # await process_event("alert_created", {"alert": alert_dict})
+
         
         return {
             "status": "created",
@@ -348,6 +345,10 @@ class AlertService:
         
         return alerts
 
+    async def delete_alert(self, alert_id: str) -> bool:
+        """Eliminar una alerta permanentemente"""
+        result = await self.collection.delete_one({"alert_id": alert_id})
+        return result.deleted_count > 0
 
 # Singleton global para uso en toda la aplicación
 _alert_service_instance = None
