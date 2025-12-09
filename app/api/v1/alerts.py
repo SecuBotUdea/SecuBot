@@ -27,6 +27,7 @@ async def create_alert(
     alert_data: AlertCreate, 
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
+    """
     service = get_alert_service()
     alert_dict = alert_data.model_dump()
     result = await service.create_alert(alert_dict)
@@ -40,6 +41,32 @@ async def create_alert(
     return SuccessResponse(
         message=result["message"],  
         data=AlertResponse(**result["alert"])
+    )
+    """
+    now = datetime.utcnow()
+
+    dummy_alert = AlertResponse(
+        signature="dummy-signature",
+        source_id="test-source",
+        severity="LOW",
+        component="test-component",
+        quality="good",
+        normalized_payload={},
+        alert_id="dummy-id",
+        status="open",
+        first_seen=now,
+        last_seen=now,
+        lifecycle_history=[],
+        reopen_count=0,
+        last_reopened_at=None,
+        version=1,
+        created_at=now,
+        updated_at=now
+    )
+
+    return SuccessResponse(
+        message="pong",
+        data=dummy_alert
     )
 
 
