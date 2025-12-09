@@ -1,71 +1,55 @@
 name: Deploy to Production
-
-on:
-  push:
-    branches: [ main ]
-    tags:
-      - 'v*'
-
+on: [ push ]
+env: 
+    VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+    VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 jobs:
-  deploy-vercel:
-    name: Deploy to Vercel
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    
-    - name: Install Vercel CLI
-      run: npm install --global vercel@latest
-    
-    - name: Pull Vercel Environment Information
-      run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-    
-    - name: Build Project Artifacts
-      run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-    
-    - name: Deploy Project Artifacts to Vercel
-      run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-      env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-    
-    - name: Create deployment status
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.repos.createDeploymentStatus({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            deployment_id: context.payload.deployment.id,
-            state: 'success',
-            environment_url: 'https://secubot.vercel.app',
-            description: 'Deployment successful'
-          })
-
-  notify:
-    name: Notify Deployment
-    runs-on: ubuntu-latest
-    needs: [deploy-vercel]
-    if: always()
-    
-    steps:
-    - name: Send Slack notification
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: 'SecuBot deployment ${{ job.status }}'
-        # webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-      if: env.SLACK_WEBHOOK != ''
-      env:
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    build:
+        name: Build and Deploy
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        steps:
+          - uses: actions/checkout@v3
+          - name: Use Node.js 18
+            uses: actions/setup-node@v3
+            with:
+                node-version: '18'
+          - name: Install dependencies
+            run: npm install
+          - name: Build project
+            run: npm run build
+    Deploy-Dev:
+        name: Deploy to Vercel (Development)
+        needs: build
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/dev'
+        steps:
+          - uses: actions/checkout@v3
+          - name: Use Node.js 18
+            uses: actions/setup-node@v3
+            with:
+                node-version: '18'
+          - name: Install vercel cli
+            run: npm install --global vercel@latest
+          - name: Pull vercel Enviromental Variables
+            run: vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }}
+          - name: Trigger Vercel Deployment
+            run: vercel deploy --no-wait --token=${{ secrets.VERCEL_TOKEN }}
+    Deploy-Production:
+        name: Deploy to Vercel (Production)
+        needs: build
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main'
+        steps:
+          - uses: actions/checkout@v3
+          - name: Use Node.js 18
+            uses: actions/setup-node@v3
+            with:
+                node-version: '18'
+          - name: Install vercel cli
+            run: npm install --global vercel@latest
+          - name: Pull vercel Enviromental Variables
+            run: vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }}
+          - name: Trigger Vercel Deployment
+            run: vercel deploy --prod --no-wait --token=${{ secrets.VERCEL_TOKEN }}
