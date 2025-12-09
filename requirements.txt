@@ -1,34 +1,30 @@
 # ==============================================
-# requirements.txt - CON pydantic-settings
+# requirements-vercel-render.txt
+# FUNCIONA en AMBOS
 # ==============================================
 
-# === USAR FASTAPI MÁS RECIENTE ===
-fastapi==0.109.2  # Más nuevo, compatible con pydantic 2.6+
-uvicorn[standard]==0.27.1
-starlette==0.36.3
+# Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 
-# === PYDANTIC 2.6+ (para pydantic-settings) ===
-pydantic==2.6.4
-pydantic-core==2.16.3
-pydantic-settings==2.12.0
-email-validator==2.1.0
+# Pydantic (compatible exacto)
+pydantic==2.5.3
+pydantic-core==2.14.6
 
-# === DATABASE ===
+# Database
 motor==3.7.1
 pymongo==4.15.5
-dnspython==2.8.0
 
-# === ASYNC ===
-anyio==4.3.0  # Compatible con FastAPI 0.109
-httpx==0.26.0
+# Async
+anyio==3.7.1
 
-# === PRODUCTION ===
+# Server (solo para Render, Vercel usa serverless)
 gunicorn==21.2.0
 
-# === UTILITIES ===
+# Environment
 python-dotenv==1.0.0
-PyYAML==6.0.1
 
-# === TYPING ===
-typing-extensions==4.9.0
-annotated-types==0.6.0
+# ¡NO INCLUIR! (causan conflictos):
+# pydantic-settings
+# email-validator (a menos que lo necesites)
+# httpx (a menos que lo necesites)
