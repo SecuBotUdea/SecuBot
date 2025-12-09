@@ -15,5 +15,9 @@
       "src": "/(.*)",
       "dest": "app/main.py"
     }
-  ]
+  ],
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  },
+  "installCommand": "pip install -r requirements-vercel.txt"
 }
