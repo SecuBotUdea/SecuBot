@@ -34,7 +34,7 @@ def get_rule_loader() -> RuleLoader:
 
     if _global_loader is None:
         # Default path
-        rules_path = Path(__file__).parent.parent.parent.parent / 'config' / 'rules.yaml'
+        rules_path = Path(__file__).resolve().parents[4] / 'config' / 'rules.yaml'
         _global_loader = RuleLoader(rules_path)
         _global_loader.load()
 
