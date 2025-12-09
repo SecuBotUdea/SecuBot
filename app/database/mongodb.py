@@ -60,6 +60,7 @@ async def connect_to_mongo() -> None:
             maxPoolSize=10,  # Máximo 10 conexiones
         )
 
+
         # Seleccionar base de datos
         db.database = db.client[settings.database_name]
 
