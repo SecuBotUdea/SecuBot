@@ -3,6 +3,10 @@ from typing import Optional, List, Dict, Any
 
 from app.models.alert import Alert
 from app.database.mongodb import get_database
+from app.services.notification_service import notification_service
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AlertService:
@@ -14,12 +18,14 @@ class AlertService:
     - Validar contra el modelo Pydantic
     - Persistir en MongoDB
     - Gestionar ciclo de vida (status, reopen, etc.)
+    - Enviar notificaciones a Slack
     - Proveer queries para el RuleEngine
     """
 
     def __init__(self):
         self.db = get_database()
         self.collection = self.db.alerts
+        self.notification_service = notification_service
 
     async def create_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -56,6 +62,16 @@ class AlertService:
         result = await self.collection.insert_one(alert_dict)
         alert_dict["_id"] = str(result.inserted_id)
 
+        # 5. 🆕 ENVIAR NOTIFICACIÓN A SLACK
+        try:
+            notification_sent = await self.notification_service.notify_new_alert(alert)
+            if notification_sent:
+                logger.info(f"Notificación enviada a Slack para alerta {alert.alert_id}")
+            else:
+                logger.warning(f"No se pudo enviar notificación para alerta {alert.alert_id}")
+        except Exception as e:
+            # No fallar la creación de alerta si falla la notificación
+            logger.error(f"Error enviando notificación para {alert.alert_id}: {e}")
         
         return {
             "status": "created",
@@ -180,17 +196,20 @@ class AlertService:
             }
         )
         
-        # TODO: Disparar evento al RuleEngine
-        # await process_event(f"alert_status_changed", {
-        #     "alert_id": alert_id,
-        #     "old_status": alert["status"],
-        #     "new_status": new_status
-        # })
+        # Obtener alerta actualizada
+        updated_alert = await self.get_alert(alert_id)
+        assert updated_alert is not None
         
-        getAlertResult = await self.get_alert(alert_id)
-        assert getAlertResult is not None
+        # 🆕 ENVIAR NOTIFICACIÓN SI ES REAPERTURA
+        if new_status == "reopened":
+            try:
+                alert_obj = Alert(**updated_alert)
+                await self.notification_service.notify_alert_reopened(alert_obj)
+                logger.info(f"Notificación de reapertura enviada para {alert_id}")
+            except Exception as e:
+                logger.error(f"Error notificando reapertura de {alert_id}: {e}")
         
-        return getAlertResult
+        return updated_alert
 
     async def reopen_alert(self, alert_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -230,10 +249,10 @@ class AlertService:
             }
         )
         
-        getAlertResult = await self.get_alert(alert_id)
-        assert getAlertResult is not None
+        updated_alert = await self.get_alert(alert_id)
+        assert updated_alert is not None
         
-        return getAlertResult
+        return updated_alert
 
     async def get_alerts_by_component(self, component: str) -> List[Dict[str, Any]]:
         """
@@ -349,6 +368,7 @@ class AlertService:
         """Eliminar una alerta permanentemente"""
         result = await self.collection.delete_one({"alert_id": alert_id})
         return result.deleted_count > 0
+
 
 # Singleton global para uso en toda la aplicación
 _alert_service_instance = None
