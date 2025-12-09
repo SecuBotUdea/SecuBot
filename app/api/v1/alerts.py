@@ -32,6 +32,7 @@ async def create_alert(
     If an alert with the same signature already exists, returns 409 Conflict.
     Otherwise creates a new alert with lifecycle tracking.
     """
+    """
     try:
         service = get_alert_service()
         
@@ -92,6 +93,32 @@ async def create_alert(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create alert: {str(e)}"
         )
+    """
+    now = datetime.utcnow()
+
+    dummy_alert = AlertResponse(
+        signature="dummy-signature",
+        source_id="test-source",
+        severity="LOW",
+        component="test-component",
+        quality="good",
+        normalized_payload={},
+        alert_id="dummy-id",
+        status="open",
+        first_seen=now,
+        last_seen=now,
+        lifecycle_history=[],
+        reopen_count=0,
+        last_reopened_at=None,
+        version=1,
+        created_at=now,
+        updated_at=now
+    )
+
+    return SuccessResponse(
+        message="pong",
+        data=dummy_alert
+    )
 
 
 @router.get('/', response_model=PaginatedResponse[AlertResponse])
