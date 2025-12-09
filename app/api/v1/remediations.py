@@ -4,9 +4,12 @@ Remediations API Router - CRUD operations for alert remediations
 """
 
 from datetime import datetime
+from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel
+from typing import Optional
 
 from app.api.dependencies import get_db, get_pagination, get_remediation_filters
 from app.models.remediation import Remediation
@@ -17,61 +20,51 @@ from app.schemas.remediation_schemas import (
     RemediationStatusUpdate,
     RemediationUpdate,
 )
+from app.services.remediation_service import get_remediation_service
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
 
-@router.post('/', response_model=SuccessResponse[RemediationResponse], status_code=status.HTTP_201_CREATED)
+class CreateRemediationRequest(BaseModel):
+    """Request para marcar una alerta como resuelta"""
+    alert_id: str
+    user_id: str
+    notes: Optional[str] = None
+    team_id: Optional[str] = None
+
+
+@router.post("/", status_code=201)
 async def create_remediation(
-    remediation_data: RemediationCreate, db: AsyncIOMotorDatabase = Depends(get_db)
-) -> SuccessResponse[RemediationResponse]:
+    request: CreateRemediationRequest,
+    remediation_service = Depends(get_remediation_service)
+) -> Dict[str, Any]:
     """
-    Create a new remediation
-
-    This endpoint is typically called when a user marks an alert as fixed through Slack
-    or when a code fix is pushed that references an alert
+    El usuario marca que ya remedió una alerta.
+    
+    Esto automáticamente:
+    - Crea el registro de remediación
+    - Dispara el rescan para verificar
+    - Ejecuta el gamificador (puntos/penalizaciones)
     """
-    # Check if remediation already exists
-    existing = await db.remediations.find_one({'remediation_id': remediation_data.remediation_id})
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'Remediation with ID {remediation_data.remediation_id} already exists',
+    try:
+        result = await remediation_service.create_remediation(
+            alert_id=request.alert_id,
+            user_id=request.user_id,
+            notes=request.notes,
+            team_id=request.team_id
         )
-
-    # Verify alert exists
-    alert = await db.alerts.find_one({'alert_id': remediation_data.alert_id})
-    if not alert:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f'Alert {remediation_data.alert_id} not found',
-        )
-
-    # Create Remediation model instance
-    remediation = Remediation(
-        **remediation_data.model_dump(),
-        action_ts=datetime.utcnow(),
-        status='pending',
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
-
-    # Insert into database
-    remediation_dict = remediation.model_dump(by_alias=True, exclude={'id'})
-    result = await db.remediations.insert_one(remediation_dict)
-
-    # Fetch created remediation
-    created_remediation = await db.remediations.find_one({'_id': result.inserted_id})
-    if not created_remediation:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Failed to create remediation',
-        )
-
-    return SuccessResponse(
-        message='Remediation created successfully',
-        data=RemediationResponse(**created_remediation),
-    )
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        logger.error(f"Error al crear remediación: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get('/', response_model=PaginatedResponse[RemediationResponse])
