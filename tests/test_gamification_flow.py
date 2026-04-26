@@ -1,23 +1,27 @@
 """
 Integration tests for the SecuBot gamification flow.
 
-Tests cover:
-1. RescanResult.to_dict() includes 'present' field
-2. RuleEngine processes rescan_completed event correctly
-3. GamificationService leaderboard, balance, stats, badges, rules
-4. TimeoutChecker detects and penalizes timed-out remediations
-5. Scheduler is configured with the expected jobs
+Covers:
+  1. RescanResult.to_dict() exposes 'present' field
+  2. RuleEngine.process_event() for rescan_completed (points & penalties)
+  3. GamificationService queries (available_rules, balance, badges)
+  4. TimeoutChecker detects timed-out remediations and fires grace_period_expired
+  5. Scheduler exposes the expected APScheduler jobs
+  6. BadgeRule model has a tier field with sensible default
+
+All tests that touch app code mock the database layer so that no real
+MongoDB connection is required.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fixtures & helpers
+# Test-data factories
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -58,7 +62,7 @@ def make_remediation(
         "user_id": user_id,
         "team_id": team_id,
         "type": "user_mark",
-        "action_ts": action_ts or datetime.now(timezone.utc) - timedelta(hours=1),
+        "action_ts": action_ts or (datetime.now(timezone.utc) - timedelta(hours=1)),
         "status": status,
         "notes": None,
         "metadata": {},
@@ -66,10 +70,11 @@ def make_remediation(
 
 
 def make_rescan_result(still_exists: bool = False) -> Dict[str, Any]:
+    """Dict representation used as RescanResult context value."""
     return {
         "alert_id": "ALT-001",
         "still_exists": still_exists,
-        "present": still_exists,  # mirrors still_exists
+        "present": still_exists,
         "reopen_count_changed": still_exists,
         "local_reopen_count": 0,
         "normalizer_reopen_count": 1 if still_exists else 0,
@@ -78,13 +83,40 @@ def make_rescan_result(still_exists: bool = False) -> Dict[str, Any]:
     }
 
 
+def _make_mock_db() -> MagicMock:
+    """Return a MagicMock that mimics the Motor MongoDB client surface."""
+    mock_db = MagicMock()
+
+    # Default aggregate cursor → empty result (user has 0 points → level 1)
+    agg_cursor = MagicMock()
+    agg_cursor.to_list = AsyncMock(return_value=[])
+    mock_db.point_transactions.aggregate.return_value = agg_cursor
+
+    # Default insert_one
+    mock_db.point_transactions.insert_one = AsyncMock(
+        return_value=MagicMock(inserted_id="fake-txn-id")
+    )
+
+    # Awards collection
+    mock_db.awards.find_one = AsyncMock(return_value=None)
+    mock_db.awards.insert_one = AsyncMock(
+        return_value=MagicMock(inserted_id="fake-award-id")
+    )
+
+    # Alerts / remediations for side-effects
+    mock_db.alerts.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    mock_db.remediations.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+
+    return mock_db
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. RescanResult.to_dict() must include "present"
+# 1. RescanResult.to_dict() must expose "present"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestRescanResultDict:
-    def test_to_dict_includes_present_when_resolved(self):
+    def test_present_is_false_when_resolved(self):
         from app.services.rescan_service import RescanResult
 
         r = RescanResult(
@@ -100,7 +132,7 @@ class TestRescanResultDict:
         assert d["present"] is False
         assert d["still_exists"] is False
 
-    def test_to_dict_includes_present_when_persists(self):
+    def test_present_is_true_when_persists(self):
         from app.services.rescan_service import RescanResult
 
         r = RescanResult(
@@ -123,182 +155,170 @@ class TestRescanResultDict:
 
 @pytest.mark.asyncio
 class TestRuleEngine:
-    """Tests for the RuleEngine using a mocked MongoDB client."""
+    """Tests for the RuleEngine with a mocked MongoDB client."""
 
-    def _build_mock_db(self):
-        mock_db = MagicMock()
-        # point_transactions.aggregate → empty (user is level 1)
-        mock_agg = AsyncMock()
-        mock_agg.to_list = AsyncMock(return_value=[])
-        mock_db.point_transactions.aggregate.return_value = mock_agg
-        # insert_one
-        mock_db.point_transactions.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id="fake-id")
-        )
-        # awards
-        mock_db.awards.find_one = AsyncMock(return_value=None)
-        mock_db.awards.insert_one = AsyncMock(return_value=MagicMock(inserted_id="award-id"))
-        return mock_db
-
-    async def test_rescan_completed_awards_points_for_critical(self):
+    async def test_awards_points_for_critical_resolved(self):
         from app.engines.rule_engine.engine import RuleEngine
 
-        mock_db = self._build_mock_db()
+        mock_db = _make_mock_db()
         engine = RuleEngine(mock_db)
 
-        context = {
-            "Alert": make_alert(severity="CRITICAL", quality="high"),
-            "Remediation": make_remediation(),
-            "RescanResult": make_rescan_result(still_exists=False),
-            "current_time": datetime.now(timezone.utc),
-        }
-
-        result = await engine.process_event("rescan_completed", context)
+        result = await engine.process_event(
+            "rescan_completed",
+            {
+                "Alert": make_alert(severity="CRITICAL", quality="high"),
+                "Remediation": make_remediation(),
+                "RescanResult": make_rescan_result(still_exists=False),
+                "current_time": datetime.now(timezone.utc),
+            },
+        )
 
         assert result["rules_evaluated"] > 0
-        # PTS-001 should have fired
         assert result["rules_triggered"] >= 1
         assert len(result["points_awarded"]) >= 1
         assert result["points_awarded"][0]["points"] > 0
 
-    async def test_rescan_completed_applies_penalty_when_persists(self):
+    async def test_applies_penalty_when_vulnerability_persists(self):
         from app.engines.rule_engine.engine import RuleEngine
 
-        mock_db = self._build_mock_db()
+        mock_db = _make_mock_db()
         engine = RuleEngine(mock_db)
 
-        # Mock side-effect calls for PEN-002
-        mock_db.alerts.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
-        mock_db.remediations.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
-
-        context = {
-            "Alert": make_alert(severity="CRITICAL", quality="high", status="pending_verification"),
-            "Remediation": make_remediation(),
-            "RescanResult": make_rescan_result(still_exists=True),
-            "current_time": datetime.now(timezone.utc),
-        }
-
-        result = await engine.process_event("rescan_completed", context)
+        result = await engine.process_event(
+            "rescan_completed",
+            {
+                "Alert": make_alert(
+                    severity="CRITICAL", quality="high", status="pending_verification"
+                ),
+                "Remediation": make_remediation(),
+                "RescanResult": make_rescan_result(still_exists=True),
+                "current_time": datetime.now(timezone.utc),
+            },
+        )
 
         assert result["rules_triggered"] >= 1
         assert len(result["penalties_applied"]) >= 1
         assert result["penalties_applied"][0]["points"] < 0
 
-    async def test_low_quality_alert_excluded(self):
+    async def test_low_quality_alert_is_excluded(self):
         from app.engines.rule_engine.engine import RuleEngine
 
-        mock_db = self._build_mock_db()
+        mock_db = _make_mock_db()
         engine = RuleEngine(mock_db)
 
-        context = {
-            "Alert": make_alert(quality="low"),
-            "Remediation": make_remediation(),
-            "RescanResult": make_rescan_result(still_exists=False),
-            "current_time": datetime.now(timezone.utc),
-        }
+        result = await engine.process_event(
+            "rescan_completed",
+            {
+                "Alert": make_alert(quality="low"),
+                "Remediation": make_remediation(),
+                "RescanResult": make_rescan_result(still_exists=False),
+                "current_time": datetime.now(timezone.utc),
+            },
+        )
 
-        result = await engine.process_event("rescan_completed", context)
-
-        # EXC-001 should block gamification
+        # EXC-001 must block gamification
         assert len(result["exclusions"]) >= 1
         assert result["rules_triggered"] == 0
         assert result["points_awarded"] == []
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. GamificationService – leaderboard, balance, stats, rules
+# 3. GamificationService – available_rules, balance, badges
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 class TestGamificationService:
-    def _build_service_with_mocks(self):
-        """Build a GamificationService with a fully mocked DB."""
+    """Tests for GamificationService using mocked DB and the real RuleLoader."""
+
+    # ------------------------------------------------------------------
+    # Helper: build a GamificationService with mocked DB but real rules.
+    # We use patch as a decorator-style context to ensure the mocks are
+    # active during __init__, then keep the object references after exit.
+    # ------------------------------------------------------------------
+    def _build_service(self):
         from app.services.gamification_service import GamificationService
+        from app.engines.rule_engine.loader.singleton import get_rule_loader as _real_loader
 
-        with patch("app.services.gamification_service.get_database") as mock_get_db, patch(
-            "app.services.gamification_service.get_rule_loader"
-        ) as mock_get_loader, patch(
-            "app.engines.rule_engine.engine.get_rule_loader"
-        ) as mock_engine_loader:
-            mock_db = MagicMock()
-            mock_get_db.return_value = mock_db
+        mock_db = _make_mock_db()
+        real_loader = _real_loader()
 
-            # Reuse same rule loader as the real one
-            from app.engines.rule_engine.loader.singleton import get_rule_loader
+        with (
+            patch(
+                "app.services.gamification_service.get_database",
+                return_value=mock_db,
+            ),
+            patch(
+                "app.services.gamification_service.get_rule_loader",
+                return_value=real_loader,
+            ),
+            patch(
+                "app.engines.rule_engine.engine.get_rule_loader",
+                return_value=real_loader,
+            ),
+        ):
+            svc = GamificationService()
 
-            real_loader = get_rule_loader()
-            mock_get_loader.return_value = real_loader
-            mock_engine_loader.return_value = real_loader
+        # Ensure collection references point at mock_db
+        svc.db = mock_db
+        svc.point_txns = mock_db.point_transactions
+        svc.awards = mock_db.awards
+        svc.users = mock_db.users
 
-            service = GamificationService()
-            service.db = mock_db
-            service.point_txns = mock_db.point_transactions
-            service.awards = mock_db.awards
-            service.users = mock_db.users
-            return service, mock_db
+        return svc, mock_db
+
+    # ------------------------------------------------------------------
 
     async def test_get_available_rules_returns_all_types(self):
-        service, _ = self._build_service_with_mocks()
-        rules = await service.get_available_rules()
+        svc, _ = self._build_service()
+        rules = await svc.get_available_rules()
 
         assert "point_rules" in rules
         assert "penalty_rules" in rules
         assert "badge_rules" in rules
         assert len(rules["point_rules"]) > 0
         assert len(rules["penalty_rules"]) > 0
-        # All badge rules must have badge_id, name, tier
-        for b in rules["badge_rules"]:
-            assert "badge_id" in b
-            assert "name" in b
-            assert "tier" in b
+        for badge in rules["badge_rules"]:
+            assert "badge_id" in badge
+            assert "name" in badge
+            assert "tier" in badge
 
-    async def test_get_user_balance_zero_for_new_user(self):
-        from app.services.gamification_service import GamificationService
+    async def test_get_user_balance_returns_zero_for_new_user(self):
+        svc, mock_db = self._build_service()
 
-        mock_db = MagicMock()
-        mock_agg = AsyncMock()
-        mock_agg.to_list = AsyncMock(return_value=[])
-        mock_db.point_transactions.aggregate.return_value = mock_agg
+        # Aggregate returns nothing → zero points
+        empty_agg = MagicMock()
+        empty_agg.to_list = AsyncMock(return_value=[])
+        mock_db.point_transactions.aggregate.return_value = empty_agg
+        # Also wire rule_engine to use same mock
+        svc.rule_engine.db = mock_db
 
-        with patch("app.services.gamification_service.get_database", return_value=mock_db), patch(
-            "app.engines.rule_engine.engine.get_rule_loader"
-        ):
-            service = GamificationService()
-            service.db = mock_db
-            service.point_txns = mock_db.point_transactions
-
-            # Patch the rule_engine directly to avoid loader issues
-            service.rule_engine.db = mock_db
-
-            balance = await service.get_user_balance("user-new")
+        balance = await svc.get_user_balance("user-new")
 
         assert balance["total_points"] == 0
         assert balance["level"] == 1
 
-    async def test_get_user_badges_returns_list(self):
-        service, mock_db = self._build_service_with_mocks()
+    async def test_get_user_badges_returns_stringified_id(self):
+        svc, mock_db = self._build_service()
 
-        mock_cursor = MagicMock()
-        mock_cursor.sort.return_value = mock_cursor
-        mock_cursor.limit.return_value = mock_cursor
-        mock_cursor.to_list = AsyncMock(
-            return_value=[
-                {
-                    "_id": "oid1",
-                    "badge_id": "BDG-001",
-                    "user_id": "user-abc",
-                    "awarded_at": datetime.now(timezone.utc),
-                    "evidence_refs": [],
-                }
-            ]
-        )
-        mock_db.awards.find.return_value = mock_cursor
+        award_doc = {
+            "_id": "oid1",
+            "badge_id": "BDG-001",
+            "user_id": "user-abc",
+            "awarded_at": datetime.now(timezone.utc),
+            "evidence_refs": [],
+        }
 
-        badges = await service.get_user_badges("user-abc")
+        cursor = MagicMock()
+        cursor.sort.return_value = cursor
+        cursor.limit.return_value = cursor
+        cursor.to_list = AsyncMock(return_value=[award_doc])
+        mock_db.awards.find.return_value = cursor
+
+        badges = await svc.get_user_badges("user-abc")
+
         assert len(badges) == 1
         assert badges[0]["badge_id"] == "BDG-001"
-        # _id should be stringified
         assert isinstance(badges[0]["_id"], str)
 
 
@@ -309,58 +329,69 @@ class TestGamificationService:
 
 @pytest.mark.asyncio
 class TestTimeoutChecker:
-    async def test_no_pending_remediations_returns_empty(self):
-        expired_ts = datetime.now(timezone.utc) - timedelta(hours=100)
-
+    async def test_returns_empty_when_nothing_pending(self):
         mock_db = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.to_list = AsyncMock(return_value=[])
-        mock_db.remediations.find.return_value = mock_cursor
+        cursor = MagicMock()
+        cursor.to_list = AsyncMock(return_value=[])
+        mock_db.remediations.find.return_value = cursor
 
-        with patch("app.tasks.timeout_checker.get_database", return_value=mock_db), patch(
-            "app.tasks.timeout_checker.get_rule_loader"
-        ) as mock_loader, patch(
-            "app.tasks.timeout_checker.get_gamification_service"
+        mock_loader = MagicMock()
+        mock_loader.get_config.return_value = MagicMock(
+            verification={"grace_period_hours": 72}
+        )
+
+        with (
+            patch("app.tasks.timeout_checker.get_database", return_value=mock_db),
+            patch(
+                "app.tasks.timeout_checker.get_rule_loader", return_value=mock_loader
+            ),
+            patch("app.tasks.timeout_checker.get_gamification_service"),
         ):
-            mock_loader.return_value.get_config.return_value = MagicMock(
-                verification={"grace_period_hours": 72}
-            )
             from app.tasks.timeout_checker import check_timed_out_remediations
 
             results = await check_timed_out_remediations()
 
         assert results == []
 
-    async def test_expired_remediation_is_penalized(self):
-        expired_remediation = make_remediation(
+    async def test_expired_remediation_triggers_penalty_and_db_update(self):
+        expired = make_remediation(
             action_ts=datetime.now(timezone.utc) - timedelta(hours=100),
             status="pending",
         )
+        alert_doc = {**make_alert(status="pending_verification"), "_id": "oid-alert"}
 
         mock_db = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.to_list = AsyncMock(return_value=[expired_remediation])
-        mock_db.remediations.find.return_value = mock_cursor
-        mock_db.remediations.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db.alerts.find_one = AsyncMock(
-            return_value={**make_alert(), "_id": "oid-alert"}
+        cursor = MagicMock()
+        cursor.to_list = AsyncMock(return_value=[expired])
+        mock_db.remediations.find.return_value = cursor
+        mock_db.remediations.update_one = AsyncMock(
+            return_value=MagicMock(modified_count=1)
         )
-        mock_db.alerts.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+        mock_db.alerts.find_one = AsyncMock(return_value=alert_doc)
+        mock_db.alerts.update_one = AsyncMock(
+            return_value=MagicMock(modified_count=1)
+        )
 
-        mock_gamification = AsyncMock()
+        mock_loader = MagicMock()
+        mock_loader.get_config.return_value = MagicMock(
+            verification={"grace_period_hours": 72}
+        )
+
+        mock_gamification = MagicMock()
         mock_gamification.process_event = AsyncMock(
             return_value={"rules_triggered": 1, "penalties_applied": [{"points": -30}]}
         )
 
-        with patch("app.tasks.timeout_checker.get_database", return_value=mock_db), patch(
-            "app.tasks.timeout_checker.get_rule_loader"
-        ) as mock_loader, patch(
-            "app.tasks.timeout_checker.get_gamification_service",
-            return_value=mock_gamification,
+        with (
+            patch("app.tasks.timeout_checker.get_database", return_value=mock_db),
+            patch(
+                "app.tasks.timeout_checker.get_rule_loader", return_value=mock_loader
+            ),
+            patch(
+                "app.tasks.timeout_checker.get_gamification_service",
+                return_value=mock_gamification,
+            ),
         ):
-            mock_loader.return_value.get_config.return_value = MagicMock(
-                verification={"grace_period_hours": 72}
-            )
             from app.tasks.timeout_checker import check_timed_out_remediations
 
             results = await check_timed_out_remediations()
@@ -368,12 +399,16 @@ class TestTimeoutChecker:
         assert len(results) == 1
         assert results[0]["status"] == "timeout"
         assert results[0]["remediation_id"] == "REM-001"
-        # Verify the gamification event was fired
+
+        # grace_period_expired event must have been fired
         mock_gamification.process_event.assert_awaited_once()
-        call_args = mock_gamification.process_event.call_args
-        assert call_args[0][0] == "grace_period_expired"
-        # Verify remediation was marked as timeout in DB
+        assert mock_gamification.process_event.call_args[0][0] == "grace_period_expired"
+
+        # Remediation must be updated to 'timeout' in the DB
         mock_db.remediations.update_one.assert_called_once()
+
+        # Alert must be restored to 'open'
+        mock_db.alerts.update_one.assert_called_once()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -382,73 +417,66 @@ class TestTimeoutChecker:
 
 
 class TestScheduler:
-    def test_scheduler_has_required_jobs(self):
-        # Reset singleton so we get a fresh scheduler for this test
-        import app.tasks.scheduler as sched_module
+    """Verify APScheduler is configured with the required jobs."""
 
-        sched_module._scheduler = None
+    def _fresh_scheduler(self):
+        """Return a fresh scheduler instance (resets the singleton)."""
+        import app.tasks.scheduler as mod
 
+        mod._scheduler = None
         from app.tasks.scheduler import get_scheduler
 
-        scheduler = get_scheduler()
-        job_ids = {job.id for job in scheduler.get_jobs()}
+        return get_scheduler(), mod
 
-        assert "timeout_checker" in job_ids
-        assert "leaderboard_snapshot" in job_ids
+    def test_required_jobs_are_registered(self):
+        scheduler, mod = self._fresh_scheduler()
+        try:
+            job_ids = {j.id for j in scheduler.get_jobs()}
+            assert "timeout_checker" in job_ids
+            assert "leaderboard_snapshot" in job_ids
+        finally:
+            mod._scheduler = None
 
-        # Cleanup
-        sched_module._scheduler = None
-
-    def test_timeout_checker_is_hourly(self):
-        import app.tasks.scheduler as sched_module
-
-        sched_module._scheduler = None
-
-        from app.tasks.scheduler import get_scheduler
+    def test_timeout_checker_uses_interval_trigger(self):
         from apscheduler.triggers.interval import IntervalTrigger
 
-        scheduler = get_scheduler()
-        timeout_job = scheduler.get_job("timeout_checker")
+        scheduler, mod = self._fresh_scheduler()
+        try:
+            job = scheduler.get_job("timeout_checker")
+            assert job is not None
+            assert isinstance(job.trigger, IntervalTrigger)
+        finally:
+            mod._scheduler = None
 
-        assert timeout_job is not None
-        assert isinstance(timeout_job.trigger, IntervalTrigger)
-
-        sched_module._scheduler = None
-
-    def test_leaderboard_snapshot_is_weekly(self):
-        import app.tasks.scheduler as sched_module
-
-        sched_module._scheduler = None
-
-        from app.tasks.scheduler import get_scheduler
+    def test_leaderboard_snapshot_uses_cron_trigger(self):
         from apscheduler.triggers.cron import CronTrigger
 
-        scheduler = get_scheduler()
-        snapshot_job = scheduler.get_job("leaderboard_snapshot")
-
-        assert snapshot_job is not None
-        assert isinstance(snapshot_job.trigger, CronTrigger)
-
-        sched_module._scheduler = None
+        scheduler, mod = self._fresh_scheduler()
+        try:
+            job = scheduler.get_job("leaderboard_snapshot")
+            assert job is not None
+            assert isinstance(job.trigger, CronTrigger)
+        finally:
+            mod._scheduler = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. BadgeRule model includes tier field
+# 6. BadgeRule Pydantic model includes a tier field
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestBadgeRuleModel:
-    def test_badge_rule_has_tier_default(self):
+    def _make_rule(self, **kwargs):
         from app.engines.rule_engine.loader.models import (
+            BadgeAwardTrigger,
             BadgeCriteria,
             BadgeRule,
-            BadgeAwardTrigger,
         )
 
-        rule = BadgeRule(
+        defaults = dict(
             badge_id="BDG-TEST",
             name="Test Badge",
-            description="A test badge",
+            description="desc",
             category="test",
             icon_url="/test.svg",
             active=True,
@@ -456,26 +484,52 @@ class TestBadgeRuleModel:
             criteria=BadgeCriteria(type="individual", conditions=[]),
             award_trigger=BadgeAwardTrigger(event="rescan_completed"),
         )
-        # Default tier should be "bronze"
+        defaults.update(kwargs)
+        return BadgeRule(**defaults)
+
+    def test_default_tier_is_bronze(self):
+        rule = self._make_rule()
         assert rule.tier == "bronze"
 
-    def test_badge_rule_tier_can_be_set(self):
-        from app.engines.rule_engine.loader.models import (
-            BadgeCriteria,
-            BadgeRule,
-            BadgeAwardTrigger,
-        )
+    def test_tier_can_be_overridden(self):
+        for tier in ("silver", "gold", "platinum"):
+            rule = self._make_rule(badge_id=f"BDG-{tier}", tier=tier)
+            assert rule.tier == tier
 
-        rule = BadgeRule(
-            badge_id="BDG-PLAT",
-            name="Platinum Badge",
-            description="A platinum badge",
-            category="prestige",
-            tier="platinum",
-            icon_url="/platinum.svg",
-            active=True,
-            version=1,
-            criteria=BadgeCriteria(type="individual", conditions=[]),
-            award_trigger=BadgeAwardTrigger(event="rescan_completed"),
-        )
-        assert rule.tier == "platinum"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. BadgeRule loader merges badges.yaml into rules.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestBadgeLoader:
+    def test_badges_yaml_loaded_into_rule_loader(self):
+        """
+        After load_badges(), the loader must expose additional BDG-xxx
+        entries that are defined only in badges.yaml (BDG-101+).
+        """
+        from app.engines.rule_engine.loader.singleton import get_rule_loader
+
+        loader = get_rule_loader()
+        all_badges = loader.get_all_active_badges()
+        badge_ids = {b.badge_id for b in all_badges}
+
+        # rules.yaml defines BDG-001..BDG-006
+        assert "BDG-001" in badge_ids
+
+        # badges.yaml adds BDG-101+ ; at least one should be present
+        extra = {bid for bid in badge_ids if bid >= "BDG-101"}
+        assert len(extra) > 0, "No supplementary badges from badges.yaml were loaded"
+
+    def test_all_badges_have_tier_field(self):
+        from app.engines.rule_engine.loader.singleton import get_rule_loader
+
+        loader = get_rule_loader()
+        for badge in loader.get_all_active_badges():
+            assert hasattr(badge, "tier"), f"{badge.badge_id} missing 'tier'"
+            assert badge.tier in (
+                "bronze",
+                "silver",
+                "gold",
+                "platinum",
+            ), f"{badge.badge_id} has unexpected tier '{badge.tier}'"
