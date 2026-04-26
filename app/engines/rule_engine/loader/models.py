@@ -125,6 +125,7 @@ class BadgeRule(BaseModel):
     name: str
     description: str
     category: str
+    tier: str = 'bronze'  # bronze | silver | gold | platinum
     icon_url: str
     active: bool
     version: int

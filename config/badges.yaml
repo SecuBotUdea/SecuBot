@@ -1,0 +1,321 @@
+# ============================================================================
+# SECUBOT - BADGES DE GAMIFICACIÓN (SUPLEMENTARIOS)
+# Definiciones adicionales de badges para el sistema de gamificación.
+# Los badges BDG-001 a BDG-006 ya están definidos en rules.yaml.
+# Este archivo extiende el catálogo con nuevos badges clasificados por tier.
+# Versión: 1.0.0
+# ============================================================================
+
+badge_rules:
+
+  # --------------------------------------------------------------------------
+  # TIER BRONCE - Primeros logros del desarrollador
+  # --------------------------------------------------------------------------
+
+  - badge_id: "BDG-101"
+    name: "Remediador Persistente"
+    description: "Completaste 5 remediaciones verificadas en total"
+    category: "milestone"
+    tier: "bronze"
+    icon_url: "/badges/persistent-remediator.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 5
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-102"
+    name: "Domador de HIGH"
+    description: "Remediaste 3 vulnerabilidades HIGH verificadas"
+    category: "severity"
+    tier: "bronze"
+    icon_url: "/badges/high-tamer.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "rule_id == 'PTS-002'"
+              - "points > 0"
+            operator: ">="
+            threshold: 3
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-103"
+    name: "Cazador de MEDIUM"
+    description: "Remediaste 10 vulnerabilidades MEDIUM verificadas"
+    category: "severity"
+    tier: "bronze"
+    icon_url: "/badges/medium-hunter.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "rule_id == 'PTS-003'"
+              - "points > 0"
+            operator: ">="
+            threshold: 10
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  # --------------------------------------------------------------------------
+  # TIER PLATA - Competencia intermedia
+  # --------------------------------------------------------------------------
+
+  - badge_id: "BDG-201"
+    name: "Guardián de 500"
+    description: "Acumulaste 500 SecuPoints"
+    category: "progression"
+    tier: "silver"
+    icon_url: "/badges/guardian-500.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - sum:
+            entity: "PointTxn"
+            field: "points"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 500
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-202"
+    name: "Remediador Activo"
+    description: "Completaste 10 remediaciones verificadas"
+    category: "milestone"
+    tier: "silver"
+    icon_url: "/badges/active-remediator.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 10
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-203"
+    name: "Multifuente"
+    description: "Remediaste vulnerabilidades de al menos 3 fuentes distintas"
+    category: "diversity"
+    tier: "silver"
+    icon_url: "/badges/multisource.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - distinct_count:
+            entity: "Remediation"
+            field: "source_id"
+            filters:
+              - "user_id == current_user"
+              - "status == 'verified_success'"
+            operator: ">="
+            threshold: 3
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  # --------------------------------------------------------------------------
+  # TIER ORO - Logros avanzados
+  # --------------------------------------------------------------------------
+
+  - badge_id: "BDG-301"
+    name: "Élite DevSecOps"
+    description: "Remediaste 25 vulnerabilidades verificadas"
+    category: "milestone"
+    tier: "gold"
+    icon_url: "/badges/elite-devsecops.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 25
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-302"
+    name: "Cazador Élite de Críticos"
+    description: "Remediaste 20 vulnerabilidades CRÍTICAS verificadas"
+    category: "severity"
+    tier: "gold"
+    icon_url: "/badges/elite-critical-hunter.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "rule_id == 'PTS-001'"
+              - "points > 0"
+            operator: ">="
+            threshold: 20
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-303"
+    name: "Centinela de 1500"
+    description: "Acumulaste 1500 SecuPoints"
+    category: "progression"
+    tier: "gold"
+    icon_url: "/badges/sentinel-1500.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - sum:
+            entity: "PointTxn"
+            field: "points"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 1500
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-304"
+    name: "Velocista de la Seguridad"
+    description: "Obtuviste 10 bonos por remediación rápida (< 24h)"
+    category: "speed"
+    tier: "gold"
+    icon_url: "/badges/speed-security.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "rule_id == 'PTS-004'"
+              - "points > 0"
+            operator: ">="
+            threshold: 10
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  # --------------------------------------------------------------------------
+  # TIER PLATINO - Logros de élite
+  # --------------------------------------------------------------------------
+
+  - badge_id: "BDG-401"
+    name: "Maestro de la Seguridad"
+    description: "Alcanzaste el nivel 5 acumulando 10.000 SecuPoints"
+    category: "progression"
+    tier: "platinum"
+    icon_url: "/badges/security-master.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - sum:
+            entity: "PointTxn"
+            field: "points"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 10000
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true
+
+  - badge_id: "BDG-402"
+    name: "Leyenda DevSecOps"
+    description: "Remediaste 100 vulnerabilidades verificadas"
+    category: "milestone"
+    tier: "platinum"
+    icon_url: "/badges/devsecops-legend.svg"
+    active: true
+    version: 1
+
+    criteria:
+      type: "individual"
+      conditions:
+        - count:
+            entity: "PointTxn"
+            filters:
+              - "user_id == current_user"
+              - "points > 0"
+            operator: ">="
+            threshold: 100
+
+    award_trigger:
+      event: "rescan_completed"
+      immediate: true

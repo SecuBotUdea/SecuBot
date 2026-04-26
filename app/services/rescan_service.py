@@ -40,6 +40,9 @@ class RescanResult:
         return {
             "alert_id": self.alert_id,
             "still_exists": self.still_exists,
+            # "present" mirrors "still_exists" for compatibility with rules.yaml conditions
+            # that reference "RescanResult.present"
+            "present": self.still_exists,
             "reopen_count_changed": self.reopen_count_changed,
             "local_reopen_count": self.local_reopen_count,
             "normalizer_reopen_count": self.normalizer_reopen_count,
