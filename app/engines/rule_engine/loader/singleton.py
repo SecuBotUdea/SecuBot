@@ -33,10 +33,14 @@ def get_rule_loader() -> RuleLoader:
     global _global_loader
 
     if _global_loader is None:
-        # Default path
+        # Default path for rules
         rules_path = Path(__file__).resolve().parents[4] / 'config' / 'rules.yaml'
         _global_loader = RuleLoader(rules_path)
         _global_loader.load()
+
+        # Optionally load supplementary badges from badges.yaml
+        badges_path = Path(__file__).resolve().parents[4] / 'config' / 'badges.yaml'
+        _global_loader.load_badges(badges_path)
 
     return _global_loader
 

@@ -9,6 +9,7 @@ Responsabilidades:
 - Coordinar con RescanService para verificar la remediación
 - INVOCAR AL RULEENGINE después del rescan (AQUÍ PASA LA MAGIA 🎯)
 - Actualizar estados de alert y remediation según resultado
+- Enviar notificaciones Slack con el resultado de la gamificación
 
 Flujo completo:
 1. Usuario dice "Resolví esta vulnerabilidad"
@@ -17,6 +18,7 @@ Flujo completo:
 4. process_rescan_result() → INVOCA GAMIFICATIONSERVICE.process_event() 🔥
 5. RuleEngine otorga puntos o penaliza
 6. Actualiza estados de alert y remediation
+7. Envía notificación Slack con resultado
 """
 
 from datetime import datetime, timezone
@@ -24,7 +26,10 @@ from typing import Dict, Any, Optional, List
 from uuid import uuid4
 
 from app.database.mongodb import get_database
+from app.models.alert import Alert
+from app.models.remediation import Remediation
 from app.services.alert_service import get_alert_service
+from app.services.notification_service import notification_service
 from app.services.rescan_service import get_rescan_service
 from app.services.gamification_service import get_gamification_service
 from app.utils.logger import get_logger
@@ -233,7 +238,27 @@ class RemediationService:
                 "rules_triggered": result["rules_triggered"]
             }
         )
-        
+
+        # 7. Si la vulnerabilidad reapareció, disparar evento alert_reopened para PEN-003
+        if rescan_result.get("reopen_count_changed"):
+            try:
+                updated_alert = await self.alert_service.get_alert(alert["alert_id"])
+                reopened_context = {
+                    "Alert": updated_alert or alert,
+                    "Remediation": remediation,
+                    "RescanResult": rescan_result,
+                    "current_time": datetime.now(timezone.utc),
+                }
+                await self.gamification_service.process_event("alert_reopened", reopened_context)
+                logger.info(
+                    f"Evento alert_reopened disparado para alerta {alert['alert_id']}"
+                )
+            except Exception as e:
+                logger.error(f"Error disparando evento alert_reopened: {e}")
+
+        # 8. Notificar a Slack el resultado de la remediación
+        await self._send_remediation_notification(alert, remediation, rescan_result, result)
+
         logger.info(
             f"Remediación {remediation['remediation_id']} procesada: "
             f"status={new_remediation_status}, "
@@ -382,6 +407,48 @@ class RemediationService:
     def _generate_remediation_id(self) -> str:
         """Generar ID único para remediación"""
         return f"rem_{uuid4().hex[:12]}"
+
+    async def _send_remediation_notification(
+        self,
+        alert: Dict[str, Any],
+        remediation: Dict[str, Any],
+        rescan_result: Dict[str, Any],
+        gamification_result: Dict[str, Any],
+    ) -> None:
+        """
+        Envía notificación Slack con el resultado de la verificación.
+
+        Construye objetos Alert y Remediation Pydantic para NotificationService.
+        Los errores de notificación se logean pero no bloquean el flujo principal.
+        """
+        try:
+            alert_obj = Alert(**{k: v for k, v in alert.items() if k != "_id"})
+            remediation_obj = Remediation(
+                **{
+                    k: v
+                    for k, v in remediation.items()
+                    if k != "_id"
+                }
+            )
+
+            if rescan_result.get("still_exists"):
+                # Penalización: vulnerabilidad persiste
+                penalty_points = sum(
+                    p.get("points", 0) for p in gamification_result.get("penalties_applied", [])
+                )
+                await notification_service.notify_remediation_failed(
+                    alert_obj, remediation_obj, penalty_points
+                )
+            else:
+                # Recompensa: remediación exitosa
+                points_earned = sum(
+                    p.get("points", 0) for p in gamification_result.get("points_awarded", [])
+                )
+                await notification_service.notify_remediation_verified(
+                    alert_obj, remediation_obj, points_earned
+                )
+        except Exception as e:
+            logger.error(f"Error enviando notificación de remediación: {e}")
 
 
 # Singleton global

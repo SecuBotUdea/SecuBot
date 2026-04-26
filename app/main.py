@@ -10,9 +10,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import alerts, notifications, remediations, users
+from app.api.v1 import alerts, gamification, notifications, remediations, users
 from app.database.indexes import create_indexes
 from app.database.mongodb import close_mongo_connection, connect_to_mongo
+from app.tasks.scheduler import get_scheduler
 from config.settings import settings
 
 
@@ -22,8 +23,14 @@ async def lifespan(app: FastAPI):
     # Startup
     await connect_to_mongo()
     await create_indexes()
+
+    scheduler = get_scheduler()
+    scheduler.start()
+
     yield
+
     # Shutdown
+    scheduler.shutdown(wait=False)
     await close_mongo_connection()
 
 # Create FastAPI app
@@ -65,6 +72,7 @@ app.include_router(notifications.router, prefix='/api/v1', tags=['Notifications'
 app.include_router(alerts.router, prefix='/api/v1/alerts', tags=['Alerts'])
 app.include_router(users.router, prefix='/api/v1/users', tags=['Users'])
 app.include_router(remediations.router, prefix='/api/v1/remediations', tags=['Remediations'])
+app.include_router(gamification.router, prefix='/api/v1/gamification', tags=['Gamification'])
 
 
 # Root endpoint

@@ -146,6 +146,45 @@ class RuleLoader:
         assert self._rules_doc is not None
         return [b for b in self._rules_doc.badge_rules if b.active]
 
+    def load_badges(self, badges_path: str | Path) -> None:
+        """
+        Carga badges adicionales desde un archivo separado (badges.yaml)
+        y los fusiona con los badge_rules ya cargados desde rules.yaml.
+
+        Args:
+            badges_path: Path al archivo badges.yaml
+
+        Note:
+            Los badges con badge_id duplicados (ya presentes en rules.yaml)
+            son ignorados para evitar conflictos.
+        """
+        self._ensure_loaded()
+        assert self._rules_doc is not None
+
+        badges_path = Path(badges_path)
+        if not badges_path.exists():
+            print(f'⚠️  Badges file not found: {badges_path}')
+            return
+
+        with open(badges_path, encoding='utf-8') as f:
+            raw_data = yaml.safe_load(f)
+
+        if not raw_data or 'badge_rules' not in raw_data:
+            return
+
+        existing_ids = {b.badge_id for b in self._rules_doc.badge_rules}
+        added = 0
+        for badge_data in raw_data['badge_rules']:
+            badge = BadgeRule(**badge_data)
+            if badge.badge_id not in existing_ids:
+                self._rules_doc.badge_rules.append(badge)
+                self._rules_cache[badge.badge_id] = badge
+                existing_ids.add(badge.badge_id)
+                added += 1
+
+        if added:
+            print(f'✅ Loaded {added} additional badges from {badges_path}')
+
     def reload(self) -> None:
         """Recarga las reglas desde el archivo"""
         self._loaded = False
