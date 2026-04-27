@@ -4,6 +4,7 @@ Sistema de orquestacion DevSecOps con gamificacion verificada
 """
 # Force reload
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -27,9 +28,24 @@ async def lifespan(app: FastAPI):
     scheduler = get_scheduler()
     scheduler.start()
 
+    # Start Discord bot as a background task (only if token is configured)
+    discord_task = None
+    if settings.discord_bot_token:
+        from app.integrations.discord.discord_bot import start_bot
+        discord_task = asyncio.create_task(start_bot())
+
     yield
 
     # Shutdown
+    if discord_task is not None:
+        from app.integrations.discord.discord_bot import stop_bot
+        await stop_bot()
+        discord_task.cancel()
+        try:
+            await discord_task
+        except asyncio.CancelledError:
+            pass
+
     scheduler.shutdown(wait=False)
     await close_mongo_connection()
 
@@ -63,6 +79,7 @@ async def health_check():
             'app': settings.app_name,
             'version': settings.app_version,
             'slack_enabled': settings.slack_notifications_enabled,
+            'discord_enabled': settings.discord_notifications_enabled,
         }
     )
 

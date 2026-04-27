@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     slack_notifications_enabled: bool = Field(default=False)
 
     # ============================================
+    # Discord Integration
+    # ============================================
+    discord_webhook_url: str | None = Field(default=None)
+    discord_bot_token: str | None = Field(default=None)
+    discord_notifications_enabled: bool = Field(default=False)
+
+    # ============================================
     # Rules Configuration
     # ============================================
     rules_config_path: Path = Field(default=Path('config/rules.yaml'))
