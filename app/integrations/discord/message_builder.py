@@ -3,7 +3,7 @@
 Discord Message Builder - Construye embeds de Discord para notificaciones de seguridad
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.models.alert import Alert
@@ -113,7 +113,7 @@ class DiscordMessageBuilder:
                 {'name': 'Usuario', 'value': remediation.user_id, 'inline': True},
             ],
             'footer': {'text': '🎉 Excelente trabajo en seguridad del codigo!'},
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
 
         return {'embeds': [embed], 'username': 'SecuBot'}
@@ -150,7 +150,7 @@ class DiscordMessageBuilder:
             'footer': {
                 'text': '💡 Revisar la correccion y ejecutar verificacion local antes de marcar como arreglada.'
             },
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
 
         return {'embeds': [embed], 'username': 'SecuBot'}
@@ -182,7 +182,7 @@ class DiscordMessageBuilder:
             'footer': {
                 'text': '⚠️ Esto puede indicar una regresion en el codigo o un fix incompleto.'
             },
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
 
         return {'embeds': [embed], 'username': 'SecuBot'}
@@ -232,7 +232,7 @@ class DiscordMessageBuilder:
                     'inline': True,
                 },
             ],
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
 
         return {'embeds': [embed], 'username': 'SecuBot'}
