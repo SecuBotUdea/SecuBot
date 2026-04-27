@@ -653,7 +653,7 @@
       conditions:
         - "PointTxn.points > 0"
       channels:
-        - type: "slack"
+        - type: "discord"
           template: "🎉 ¡+{points} SecuPoints! {reason}"
           mention_user: true
     
@@ -661,7 +661,7 @@
     - trigger: "badge_awarded"
       conditions: []
       channels:
-        - type: "slack"
+        - type: "discord"
           template: "🏆 ¡Nuevo badge desbloqueado: {badge_name}! {description}"
           mention_user: true
           public_announcement: true
@@ -671,7 +671,7 @@
       conditions:
         - "PointTxn.points < 0"
       channels:
-        - type: "slack"
+        - type: "discord"
           template: "⚠️ Penalización: {penalty_reason}. {points} puntos. {reason}"
           mention_user: true
           private: true
@@ -680,7 +680,7 @@
     - trigger: "alert_reopened"
       conditions: []
       channels:
-        - type: "slack"
+        - type: "discord"
           template: "🔄 Alerta {alert_id} ha reaparecido. Se requiere nueva remediación."
           mention_user: true
 

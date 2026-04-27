@@ -1,5 +1,5 @@
 """
-Notifications API Endpoints - Para probar la integración con Slack
+Notifications API Endpoints - Integración con Discord
 """
 
 from datetime import datetime
@@ -31,7 +31,7 @@ class TestAlertRequest(BaseModel):
 @router.post('/notifications/test', summary='Enviar notificación de prueba simple')
 async def send_test_notification(request: TestNotificationRequest):
     """
-    Envía una notificación de prueba simple a Slack
+    Envía una notificación de prueba simple a Discord
 
     Útil para verificar que la configuración del webhook funciona correctamente
     """
@@ -40,7 +40,7 @@ async def send_test_notification(request: TestNotificationRequest):
     if not success:
         raise HTTPException(
             status_code=500,
-            detail='Failed to send notification. Check Slack configuration and logs.',
+            detail='Failed to send notification. Check Discord configuration and logs.',
         )
 
     return {
@@ -53,7 +53,7 @@ async def send_test_notification(request: TestNotificationRequest):
 @router.post('/notifications/test-alert', summary='Enviar alerta de prueba')
 async def send_test_alert(request: TestAlertRequest):
     """
-    Envía una alerta de seguridad de prueba a Slack
+    Envía una alerta de seguridad de prueba a Discord
 
     Esto crea un objeto Alert ficticio y envía la notificación formateada
     """
@@ -79,7 +79,7 @@ async def send_test_alert(request: TestAlertRequest):
     if not success:
         raise HTTPException(
             status_code=500,
-            detail='Failed to send alert notification. Check Slack configuration and logs.',
+            detail='Failed to send alert notification. Check Discord configuration and logs.',
         )
 
     return {
@@ -121,7 +121,7 @@ async def send_test_remediation_verified():
     test_remediation = Remediation(
         remediation_id='test-rem-001',
         alert_id=test_alert.alert_id,
-        user_id='U12345678',  # Slack user ID format
+        user_id='U12345678',  # Discord user ID
         team_id='team-001',
         type='user_mark',
         action_ts=datetime.utcnow(),
@@ -137,7 +137,7 @@ async def send_test_remediation_verified():
     if not success:
         raise HTTPException(
             status_code=500,
-            detail='Failed to send remediation notification. Check Slack configuration.',
+            detail='Failed to send remediation notification. Check Discord configuration.',
         )
 
     return {

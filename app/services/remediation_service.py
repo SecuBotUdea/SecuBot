@@ -9,7 +9,7 @@ Responsabilidades:
 - Coordinar con RescanService para verificar la remediación
 - INVOCAR AL RULEENGINE después del rescan (AQUÍ PASA LA MAGIA 🎯)
 - Actualizar estados de alert y remediation según resultado
-- Enviar notificaciones Slack con el resultado de la gamificación
+- Enviar notificaciones Discord con el resultado de la gamificación
 
 Flujo completo:
 1. Usuario dice "Resolví esta vulnerabilidad"
@@ -18,7 +18,7 @@ Flujo completo:
 4. process_rescan_result() → INVOCA GAMIFICATIONSERVICE.process_event() 🔥
 5. RuleEngine otorga puntos o penaliza
 6. Actualiza estados de alert y remediation
-7. Envía notificación Slack con resultado
+7. Envía notificación Discord con resultado
 """
 
 from datetime import datetime, timezone
@@ -256,7 +256,7 @@ class RemediationService:
             except Exception as e:
                 logger.error(f"Error disparando evento alert_reopened: {e}")
 
-        # 8. Notificar a Slack el resultado de la remediación
+        # 8. Notificar a Discord el resultado de la remediación
         await self._send_remediation_notification(alert, remediation, rescan_result, result)
 
         logger.info(
@@ -416,7 +416,7 @@ class RemediationService:
         gamification_result: Dict[str, Any],
     ) -> None:
         """
-        Envía notificación Slack con el resultado de la verificación.
+        Envía notificación Discord con el resultado de la verificación.
 
         Construye objetos Alert y Remediation Pydantic para NotificationService.
         Los errores de notificación se logean pero no bloquean el flujo principal.

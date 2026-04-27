@@ -18,7 +18,7 @@ class AlertService:
     - Validar contra el modelo Pydantic
     - Persistir en MongoDB
     - Gestionar ciclo de vida (status, reopen, etc.)
-    - Enviar notificaciones a Slack
+    - Enviar notificaciones a Discord
     - Proveer queries para el RuleEngine
     """
 
@@ -62,11 +62,11 @@ class AlertService:
         result = await self.collection.insert_one(alert_dict)
         alert_dict["_id"] = str(result.inserted_id)
 
-        # 5. 🆕 ENVIAR NOTIFICACIÓN A SLACK
+        # 5. ENVIAR NOTIFICACIÓN A DISCORD
         try:
             notification_sent = await self.notification_service.notify_new_alert(alert)
             if notification_sent:
-                logger.info(f"Notificación enviada a Slack para alerta {alert.alert_id}")
+                logger.info(f"Notificación enviada a Discord para alerta {alert.alert_id}")
             else:
                 logger.warning(f"No se pudo enviar notificación para alerta {alert.alert_id}")
         except Exception as e:

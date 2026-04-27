@@ -28,7 +28,7 @@ async def create_user(
     Create a new user
 
     This endpoint is typically called when a user joins the team or first interacts
-    with the SecuBot system through Slack
+    with the SecuBot system through Discord
     """
     service = get_user_service()
     

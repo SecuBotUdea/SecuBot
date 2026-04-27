@@ -78,7 +78,6 @@ async def health_check():
             'status': 'healthy',
             'app': settings.app_name,
             'version': settings.app_version,
-            'slack_enabled': settings.slack_notifications_enabled,
             'discord_enabled': settings.discord_notifications_enabled,
         }
     )
