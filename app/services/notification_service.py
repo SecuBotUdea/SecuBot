@@ -1,11 +1,9 @@
 """
-Notification Service - Orquesta el envio de notificaciones a Slack y Discord
+Notification Service - Orquesta el envio de notificaciones a Discord
 """
 
 from app.integrations.discord.discord_client import discord_client
 from app.integrations.discord.message_builder import discord_message_builder
-from app.integrations.notifications.message_builder import message_builder
-from app.integrations.notifications.slack_client import slack_client
 from app.models.alert import Alert
 from app.models.remediation import Remediation
 from app.utils.logger import get_logger
@@ -14,13 +12,11 @@ logger = get_logger(__name__)
 
 
 class NotificationService:
-    """Servicio para enviar notificaciones de eventos del sistema"""
+    """Servicio para enviar notificaciones de eventos del sistema via Discord"""
 
     def __init__(self):
-        self.slack = slack_client
         self.discord = discord_client
-        self.message_builder = message_builder
-        self.discord_builder = discord_message_builder
+        self.builder = discord_message_builder
 
     async def notify_new_alert(self, alert: Alert) -> bool:
         """
@@ -30,15 +26,11 @@ class NotificationService:
             alert: Objeto Alert con los datos de la alerta
 
         Returns:
-            bool: True si al menos una notificacion se envio correctamente
+            bool: True si la notificacion se envio correctamente
         """
         try:
-            slack_ok = await self.slack.send_message(self.message_builder.build_alert_message(alert))
-            discord_ok = await self.discord.send_message(
-                self.discord_builder.build_alert_embed(alert)
-            )
+            success = await self.discord.send_message(self.builder.build_alert_embed(alert))
 
-            success = slack_ok or discord_ok
             if success:
                 logger.info(f'Notification sent for new alert: {alert.alert_id}')
             else:
@@ -62,21 +54,13 @@ class NotificationService:
             points_earned: Puntos ganados por la remediacion
 
         Returns:
-            bool: True si al menos una notificacion se envio correctamente
+            bool: True si la notificacion se envio correctamente
         """
         try:
-            slack_ok = await self.slack.send_message(
-                self.message_builder.build_remediation_verified_message(
-                    alert, remediation, points_earned
-                )
-            )
-            discord_ok = await self.discord.send_message(
-                self.discord_builder.build_remediation_verified_embed(
-                    alert, remediation, points_earned
-                )
+            success = await self.discord.send_message(
+                self.builder.build_remediation_verified_embed(alert, remediation, points_earned)
             )
 
-            success = slack_ok or discord_ok
             if success:
                 logger.info(
                     f'Notification sent for verified remediation: {remediation.id} (+{points_earned} points)'
@@ -96,7 +80,7 @@ class NotificationService:
         self, alert: Alert, remediation: Remediation, penalty_points: int
     ) -> bool:
         """
-        Notifica que un rescan detecto que la vulnerabilidad persiste (remediacion falsa)
+        Notifica que un rescan detecto que la vulnerabilidad persiste
 
         Args:
             alert: Alerta que supuestamente fue remediada
@@ -104,21 +88,13 @@ class NotificationService:
             penalty_points: Puntos de penalizacion
 
         Returns:
-            bool: True si al menos una notificacion se envio correctamente
+            bool: True si la notificacion se envio correctamente
         """
         try:
-            slack_ok = await self.slack.send_message(
-                self.message_builder.build_remediation_failed_message(
-                    alert, remediation, penalty_points
-                )
-            )
-            discord_ok = await self.discord.send_message(
-                self.discord_builder.build_remediation_failed_embed(
-                    alert, remediation, penalty_points
-                )
+            success = await self.discord.send_message(
+                self.builder.build_remediation_failed_embed(alert, remediation, penalty_points)
             )
 
-            success = slack_ok or discord_ok
             if success:
                 logger.info(
                     f'Notification sent for failed remediation: {remediation.id} ({penalty_points} penalty)'
@@ -144,17 +120,13 @@ class NotificationService:
             alert: Alerta que fue reabierta
 
         Returns:
-            bool: True si al menos una notificacion se envio correctamente
+            bool: True si la notificacion se envio correctamente
         """
         try:
-            slack_ok = await self.slack.send_message(
-                self.message_builder.build_alert_reopened_message(alert)
-            )
-            discord_ok = await self.discord.send_message(
-                self.discord_builder.build_alert_reopened_embed(alert)
+            success = await self.discord.send_message(
+                self.builder.build_alert_reopened_embed(alert)
             )
 
-            success = slack_ok or discord_ok
             if success:
                 logger.info(f'Notification sent for reopened alert: {alert.alert_id}')
             else:
@@ -176,13 +148,11 @@ class NotificationService:
             message: Mensaje de texto a enviar
 
         Returns:
-            bool: True si al menos un canal recibio el mensaje
+            bool: True si se envio correctamente
         """
         try:
-            slack_ok = await self.slack.send_simple_message(f'🧪 Test: {message}')
-            discord_ok = await self.discord.send_simple_message(f'🧪 Test: {message}')
+            success = await self.discord.send_simple_message(f'🧪 Test: {message}')
 
-            success = slack_ok or discord_ok
             if success:
                 logger.info('Test notification sent successfully')
             else:

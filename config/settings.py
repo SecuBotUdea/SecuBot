@@ -46,12 +46,6 @@ class Settings(BaseSettings):
         return v
 
     # ============================================
-    # Slack Integration
-    # ============================================
-    slack_webhook_url: str | None = Field(default=None)
-    slack_notifications_enabled: bool = Field(default=False)
-
-    # ============================================
     # Discord Integration
     # ============================================
     discord_webhook_url: str | None = Field(default=None)
