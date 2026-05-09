@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # ============================================
     # MongoDB Settings
     # ============================================
-    mongodb_uri: str = Field(..., env="MONGODB_URI")
+    mongodb_uri: str = Field(default='mongodb://localhost:27017')
 
     database_name: str = Field(default='secubot_dev')
 
