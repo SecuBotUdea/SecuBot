@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.database.mongodb import get_database
 from app.models.alert import Alert
 from app.models.remediation import Remediation
 from app.services.notification_service import notification_service
@@ -53,14 +54,24 @@ async def send_test_notification(request: TestNotificationRequest):
 @router.post('/notifications/test-alert', summary='Enviar alerta de prueba')
 async def send_test_alert(request: TestAlertRequest):
     """
-    Envía una alerta de seguridad de prueba a Discord
+    Envía una alerta de seguridad de prueba a Discord y la persiste en MongoDB.
 
-    Esto crea un objeto Alert ficticio y envía la notificación formateada
+    Esto crea un objeto Alert ficticio, lo guarda en la base de datos y envía
+    la notificación formateada. La alerta guardada puede usarse con !rescan.
+
+    Body (todos los campos tienen valores por defecto):
+    ```json
+    {
+        "severity": "HIGH",
+        "component": "test-service",
+        "alert_id": "test-alert-001"
+    }
+    ```
     """
     # Crear alerta de prueba
     test_alert = Alert(
         alert_id=request.alert_id,
-        signature=f'test-sig-{datetime.utcnow().timestamp()}',
+        signature=f'test-sig-{request.alert_id}',
         source_id='test-source',
         severity=request.severity,
         component=request.component,
@@ -72,6 +83,15 @@ async def send_test_alert(request: TestAlertRequest):
             'description': 'Esta es una alerta de prueba generada desde el endpoint de testing',
             'cvss_score': 7.5,
         },
+    )
+
+    # Persistir en MongoDB (upsert) para que !rescan pueda encontrarla
+    db = get_database()
+    alert_dict = test_alert.model_dump()
+    await db.alerts.update_one(
+        {'alert_id': test_alert.alert_id},
+        {'$set': alert_dict},
+        upsert=True,
     )
 
     success = await notification_service.notify_new_alert(test_alert)
