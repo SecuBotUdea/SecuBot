@@ -135,6 +135,13 @@ async def start_bot() -> None:
         await bot.start(token)
     except discord.LoginFailure:
         logger.error('Token de Discord inválido. Verifica DISCORD_BOT_TOKEN en .env')
+    except discord.PrivilegedIntentsRequired:
+        logger.warning(
+            'El bot de Discord requiere el "Message Content Intent" que no está habilitado. '
+            'Para habilitarlo: Discord Developer Portal → tu aplicación → Bot → '
+            'Privileged Gateway Intents → activa "MESSAGE CONTENT INTENT". '
+            'El bot estará inactivo hasta que se habilite el intent.'
+        )
     except asyncio.CancelledError:
         logger.info('Bot de Discord detenido.')
     except Exception as e:

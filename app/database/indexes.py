@@ -6,133 +6,173 @@ Define y crea los índices necesarios para optimizar queries
 import logging
 
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure
 
 from app.database.mongodb import get_database
 
 logger = logging.getLogger(__name__)
 
+# MongoDB error code for IndexOptionsConflict (index exists with different name/options)
+_INDEX_OPTIONS_CONFLICT = 85
+_INDEX_KEY_SPECS_CONFLICT = 86
+
+
+async def _safe_create_index(collection, keys, log_label: str, **kwargs) -> None:
+    """
+    Creates an index, tolerating conflicts when an equivalent index already exists
+    under a different auto-generated name (e.g. created by an older migration).
+    """
+    try:
+        await collection.create_index(keys, **kwargs)
+        logger.info(f"✅ Índice creado: {log_label}")
+    except OperationFailure as e:
+        if e.code in (_INDEX_OPTIONS_CONFLICT, _INDEX_KEY_SPECS_CONFLICT):
+            logger.warning(
+                f"⚠️  Índice '{log_label}' ya existe con un nombre diferente "
+                f"(probablemente de una migración anterior). Se omite. [{e.details.get('errmsg', e)}]"
+            )
+        else:
+            logger.error(f"❌ Error creando índice '{log_label}': {e}")
+    except Exception as e:
+        logger.error(f"❌ Error inesperado creando índice '{log_label}': {e}")
+
 
 async def create_indexes() -> None:
     """
-    Crea todos los índices necesarios en las colecciones
-    Se ejecuta automáticamente al iniciar la aplicación
+    Crea todos los índices necesarios en las colecciones.
+    Se ejecuta automáticamente al iniciar la aplicación.
+    Los errores por índice existente se registran como advertencias y no
+    interrumpen el arranque de la aplicación.
     """
     try:
         db = get_database()
-
         logger.info("Creando índices en MongoDB...")
 
         # ==========================================
         # ALERTS
         # ==========================================
-        await db.alerts.create_index(
+        await _safe_create_index(
+            db.alerts,
             [("signature", ASCENDING)],
+            "alerts.signature (unique)",
             unique=True,
-            name="idx_signature_unique"
+            name="idx_signature_unique",
         )
-        logger.info("✅ Índice creado: alerts.signature (unique)")
 
-        await db.alerts.create_index(
+        await _safe_create_index(
+            db.alerts,
             [("status", ASCENDING), ("severity", DESCENDING)],
-            name="idx_status_severity"
+            "alerts.status + severity",
+            name="idx_status_severity",
         )
-        logger.info("✅ Índice creado: alerts.status + severity")
 
-        await db.alerts.create_index(
+        await _safe_create_index(
+            db.alerts,
             [("first_seen", DESCENDING)],
-            name="idx_first_seen"
+            "alerts.first_seen",
+            name="idx_first_seen",
         )
-        logger.info("✅ Índice creado: alerts.first_seen")
 
         # ==========================================
         # REMEDIATIONS
         # ==========================================
-        await db.remediations.create_index(
+        await _safe_create_index(
+            db.remediations,
             [("alert_id", ASCENDING)],
-            name="idx_alert_id"
+            "remediations.alert_id",
+            name="idx_alert_id",
         )
-        logger.info("✅ Índice creado: remediations.alert_id")
 
-        await db.remediations.create_index(
+        await _safe_create_index(
+            db.remediations,
             [("user_id", ASCENDING), ("created_at", DESCENDING)],
-            name="idx_user_created"
+            "remediations.user_id + created_at",
+            name="idx_user_created",
         )
-        logger.info("✅ Índice creado: remediations.user_id + created_at")
 
-        await db.remediations.create_index(
+        await _safe_create_index(
+            db.remediations,
             [("status", ASCENDING)],
-            name="idx_status"
+            "remediations.status",
+            name="idx_status",
         )
-        logger.info("✅ Índice creado: remediations.status")
 
         # ==========================================
         # POINT TRANSACTIONS (Ledger Inmutable)
         # ==========================================
-        await db.point_transactions.create_index(
+        await _safe_create_index(
+            db.point_transactions,
             [("user_id", ASCENDING), ("timestamp", DESCENDING)],
-            name="idx_user_timestamp"
+            "point_transactions.user_id + timestamp",
+            name="idx_user_timestamp",
         )
-        logger.info("✅ Índice creado: point_transactions.user_id + timestamp")
 
-        await db.point_transactions.create_index(
+        await _safe_create_index(
+            db.point_transactions,
             [("rule_id", ASCENDING)],
-            name="idx_rule_id"
+            "point_transactions.rule_id",
+            name="idx_rule_id",
         )
-        logger.info("✅ Índice creado: point_transactions.rule_id")
 
         # ==========================================
         # USERS
         # ==========================================
-        await db.users.create_index(
+        await _safe_create_index(
+            db.users,
             [("user_id", ASCENDING)],
+            "users.user_id (unique)",
             unique=True,
-            name="idx_user_id_unique"
+            name="idx_user_id_unique",
         )
-        logger.info("✅ Índice creado: users.user_id (unique)")
 
-        await db.users.create_index(
+        await _safe_create_index(
+            db.users,
             [("email", ASCENDING)],
+            "users.email (unique, sparse)",
             unique=True,
-            sparse=True,  # Permite nulls
-            name="idx_email_unique"
+            sparse=True,
+            name="idx_email_unique",
         )
-        logger.info("✅ Índice creado: users.email (unique, sparse)")
 
         # ==========================================
         # AWARDS (Badges)
         # ==========================================
-        await db.awards.create_index(
+        await _safe_create_index(
+            db.awards,
             [("user_id", ASCENDING), ("badge_id", ASCENDING)],
+            "awards.user_id + badge_id (unique)",
             unique=True,
-            name="idx_user_badge_unique"
+            name="idx_user_badge_unique",
         )
-        logger.info("✅ Índice creado: awards.user_id + badge_id (unique)")
 
-        await db.awards.create_index(
+        await _safe_create_index(
+            db.awards,
             [("awarded_at", DESCENDING)],
-            name="idx_awarded_at"
+            "awards.awarded_at",
+            name="idx_awarded_at",
         )
-        logger.info("✅ Índice creado: awards.awarded_at")
 
         # ==========================================
         # RESCAN RESULTS
         # ==========================================
-        await db.rescan_results.create_index(
+        await _safe_create_index(
+            db.rescan_results,
             [("remediation_id", ASCENDING)],
-            name="idx_remediation_id"
+            "rescan_results.remediation_id",
+            name="idx_remediation_id",
         )
-        logger.info("✅ Índice creado: rescan_results.remediation_id")
 
-        await db.rescan_results.create_index(
+        await _safe_create_index(
+            db.rescan_results,
             [("alert_id", ASCENDING), ("executed_at", DESCENDING)],
-            name="idx_alert_executed"
+            "rescan_results.alert_id + executed_at",
+            name="idx_alert_executed",
         )
-        logger.info("✅ Índice creado: rescan_results.alert_id + executed_at")
 
-        logger.info("🎉 Todos los índices creados exitosamente")
+        logger.info("🎉 Inicialización de índices completada")
 
     except Exception as e:
-        logger.error(f"❌ Error creando índices: {e}")
+        logger.error(f"❌ Error inesperado durante la creación de índices: {e}")
         # No lanzamos excepción para no romper el inicio de la app
         # Los índices no son críticos para que la app funcione
 
