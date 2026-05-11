@@ -23,8 +23,18 @@ class AlertCreate(AlertBase):
     """Schema for creating a new alert"""
     alert_id: str = Field(..., description='Unique alert identifier')
     status: str = Field(default='open', description='Alert status')
-    
-    # 🆕 Campos opcionales con defaults - el router los llenará si no vienen
+
+    # Overrides de AlertBase — el router los deriva si no vienen
+    signature: str | None = Field(None, description='Unique signature of the finding')
+    quality: str | None = Field(None, description='Quality or confidence level')
+
+    # Campos nuevos del parser
+    source_type: str | None = Field(None, description='Source type (e.g. dependabot, snyk)')
+    title: str | None = Field(None, description='Human-readable title of the finding')
+    location: str | None = Field(None, description='Affected file or path')
+    external_references_score: float | None = Field(None, description='External score (e.g. CVSS)')
+
+    # Timestamps y lifecycle — el router los llena si no vienen
     first_seen: datetime | None = Field(None, description='First detection timestamp')
     last_seen: datetime | None = Field(None, description='Last seen timestamp')
     created_at: datetime | None = Field(None)
@@ -50,6 +60,13 @@ class AlertResponse(AlertBase):
     """Schema for alert responses"""
     alert_id: str = Field(..., description='Unique alert identifier')
     status: str = Field(..., description='Alert lifecycle status')
+
+    # Campos nuevos del parser
+    source_type: str | None = None
+    title: str | None = None
+    location: str | None = None
+    external_references_score: float | None = None
+
     first_seen: datetime = Field(..., description='First detection timestamp')
     last_seen: datetime = Field(..., description='Last seen timestamp')
     lifecycle_history: list[dict[str, Any]] = Field(
