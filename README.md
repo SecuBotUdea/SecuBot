@@ -192,7 +192,7 @@ Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persis
      - `ENVIRONMENT=production`
      - `DISCORD_NOTIFICATIONS_ENABLED=true`
 
-3. **Riesgo en capa gratuita de Render**
+3. **Riesgos en capa gratuita de Render**
    - Si el servicio entra en sleep, el bot se desconecta y no escuchará `!rescan`.
    - Para operación estable 24/7, usa un plan always-on.
 
@@ -211,6 +211,7 @@ Settings → Secrets and variables → Actions → New repository secret
 
 1. Verificar salud:
 ```bash
+# Reemplaza <render-service-url> por la URL real de tu servicio en Render
 curl https://<render-service-url>/health
 ```
 
