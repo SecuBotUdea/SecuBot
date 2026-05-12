@@ -64,9 +64,8 @@ curl http://localhost:8000/health
 ```
 secubot/
 ├── .github/               # GitHub Actions workflows
-│   └── workflows/        
-│       ├── ci.yml        # Tests, lint, security
-│       └── deploy.yml    # Deploy a Vercel
+│   └── workflows/
+│       └── ci.yml        # Tests, lint, security
 ├── app/                  # Código de la aplicación
 │   ├── api/             # Endpoints REST
 │   ├── engines/         # Motor de Reglas
@@ -172,10 +171,30 @@ Se ejecuta en cada push y PR:
 - ✅ Cobertura de código
 - ✅ Security scan (Safety + Bandit)
 
-### Deploy (`.github/workflows/deploy.yml`)
-Se ejecuta en push a `main`:
-- 🚀 Deploy automático a Vercel
-- 📢 Notificación a Slack (opcional)
+## 🌐 Despliegue recomendado (Vercel + Render)
+
+Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persistente:
+
+1. **Vercel (API serverless)**
+   - Mantén `vercel.json` para exponer la API FastAPI.
+   - **No configures** `DISCORD_BOT_TOKEN` en Vercel (déjalo vacío/no definido).
+
+2. **Render (proceso persistente para bot)**
+   - Usa `render.yaml` de este repo o configura manualmente un Web Service.
+   - `startCommand`:
+     ```bash
+     uvicorn app.main:app --host 0.0.0.0 --port $PORT
+     ```
+   - Variables requeridas en Render:
+     - `DISCORD_BOT_TOKEN`
+     - `MONGODB_URI`
+     - `DATABASE_NAME`
+     - `ENVIRONMENT=production`
+     - `DISCORD_NOTIFICATIONS_ENABLED=true`
+
+3. **Riesgo en capa gratuita de Render**
+   - Si el servicio entra en sleep, el bot se desconecta y no escuchará `!rescan`.
+   - Para operación estable 24/7, usa un plan always-on.
 
 ### Configurar GitHub Secrets
 
@@ -188,13 +207,24 @@ Settings → Secrets and variables → Actions → New repository secret
 **Requeridos para tests:**
 - `MONGODB_URI_TEST`: URI de MongoDB para tests
 
-**Requeridos para deploy:**
-- `VERCEL_TOKEN`: Token de Vercel
-- `VERCEL_ORG_ID`: Organization ID
-- `VERCEL_PROJECT_ID`: Project ID
+## ✅ Validación de despliegue
 
-**Opcionales:**
-- `SLACK_WEBHOOK`: Para notificaciones
+1. Verificar salud:
+```bash
+curl https://<render-service-url>/health
+```
+
+2. Verificar endpoint de notificación:
+```bash
+curl -X POST https://<render-service-url>/api/v1/notifications/test \
+  -H "Content-Type: application/json" \
+  -d '{"message":"SecuBot test notification"}'
+```
+
+3. Verificar comando del bot en Discord:
+```text
+!rescan <alert_id>
+```
 
 ## 📊 Arquitectura
 

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: secubot-discord-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DISCORD_NOTIFICATIONS_ENABLED
+        value: "true"
+      - key: MONGODB_URI
+        sync: false
+      - key: DATABASE_NAME
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
