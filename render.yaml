@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    # El bot Discord se inicia en app.main lifespan cuando DISCORD_BOT_TOKEN está configurado
+    # Discord bot starts in app.main lifespan when DISCORD_BOT_TOKEN is configured
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
