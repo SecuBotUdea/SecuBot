@@ -177,7 +177,7 @@ Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persis
 
 1. **Vercel (API serverless)**
    - Mantén `vercel.json` para exponer la API FastAPI.
-   - **No configures** `DISCORD_BOT_TOKEN` en Vercel (déjalo vacío/no definido).
+   - **No configures** `DISCORD_BOT_TOKEN` en Vercel (no definas esa variable allí).
 
 2. **Render (proceso persistente para bot)**
    - Usa `render.yaml` de este repo o configura manualmente un Web Service.
