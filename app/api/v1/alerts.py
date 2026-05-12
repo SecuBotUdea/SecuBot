@@ -2,6 +2,7 @@
 Alerts API Router - CRUD operations for security alerts
 """
 
+import hashlib
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,21 +24,38 @@ router = APIRouter()
 
 @router.post('/', response_model=SuccessResponse[AlertResponse], status_code=status.HTTP_201_CREATED)
 async def create_alert(
-    alert_data: AlertCreate, 
+    alert_data: AlertCreate,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
     Create a new alert
-    
+
     If an alert with the same signature already exists, returns 409 Conflict.
     Otherwise creates a new alert with lifecycle tracking.
     """
     try:
         service = get_alert_service()
-        
+
         # Convert Pydantic model to dict
         alert_dict = alert_data.model_dump(exclude_none=True)
-        
+
+        # Derivar signature si no viene
+        if not alert_dict.get('signature'):
+            raw = f"{alert_dict['source_id']}:{alert_dict['alert_id']}:{alert_dict['component']}"
+            alert_dict['signature'] = hashlib.sha256(raw.encode()).hexdigest()
+
+        # Derivar quality si no viene
+        if not alert_dict.get('quality'):
+            score = alert_dict.get('external_references_score')
+            if score is None:
+                alert_dict['quality'] = 'medium'
+            elif score >= 8.0:
+                alert_dict['quality'] = 'high'
+            elif score >= 5.0:
+                alert_dict['quality'] = 'medium'
+            else:
+                alert_dict['quality'] = 'low'
+
         # Ensure timestamps are set
         now = datetime.utcnow()
         if 'first_seen' not in alert_dict or not alert_dict['first_seen']:
@@ -48,7 +66,7 @@ async def create_alert(
             alert_dict['created_at'] = now
         if 'updated_at' not in alert_dict:
             alert_dict['updated_at'] = now
-        
+
         # Initialize lifecycle_history if not present
         if 'lifecycle_history' not in alert_dict:
             alert_dict['lifecycle_history'] = [{
@@ -57,34 +75,31 @@ async def create_alert(
                 "new_status": alert_dict.get('status', 'open'),
                 "metadata": {"event": "alert_created"}
             }]
-        
+
         # Create alert using service
         result = await service.create_alert(alert_dict)
-        
+
         # Handle duplicate case
         if result["status"] == "duplicate":
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, 
+                status_code=status.HTTP_409_CONFLICT,
                 detail=result["message"]
             )
-        
+
         # Return success response
         return SuccessResponse(
-            message=result["message"],  
+            message=result["message"],
             data=AlertResponse(**result["alert"])
         )
-    
+
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except ValueError as e:
-        # Handle validation errors
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
     except Exception as e:
-        # Log the error and return 500
         import traceback
         print(f"Error creating alert: {str(e)}")
         print(traceback.format_exc())
@@ -102,13 +117,12 @@ async def list_alerts(
 ) -> PaginatedResponse[AlertResponse]:
     """
     List alerts with optional filtering and pagination
-    
+
     Filters: severity, status, source_id, component, quality
     """
     try:
         service = get_alert_service()
-        
-        # Get alerts from service
+
         alerts = await service.list_alerts(
             status=filters.get("status"),
             severity=filters.get("severity"),
@@ -118,13 +132,10 @@ async def list_alerts(
             limit=pagination.limit,
             skip=pagination.skip
         )
-        
-        # Count total matching documents
+
         total = await db.alerts.count_documents(filters)
-        
-        # Convert to response models
         items = [AlertResponse(**alert) for alert in alerts]
-        
+
         return PaginatedResponse(
             items=items,
             total=total,
@@ -144,7 +155,7 @@ async def list_alerts(
 
 @router.get('/{alert_id}', response_model=AlertResponse)
 async def get_alert(
-    alert_id: str, 
+    alert_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> AlertResponse:
     """
@@ -153,13 +164,13 @@ async def get_alert(
     try:
         service = get_alert_service()
         alert = await service.get_alert(alert_id)
-        
+
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f'Alert {alert_id} not found'
             )
-        
+
         return AlertResponse(**alert)
     except HTTPException:
         raise
@@ -175,8 +186,8 @@ async def get_alert(
 
 @router.patch('/{alert_id}', response_model=SuccessResponse[AlertResponse])
 async def update_alert(
-    alert_id: str, 
-    alert_update: AlertUpdate, 
+    alert_id: str,
+    alert_update: AlertUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
@@ -185,37 +196,32 @@ async def update_alert(
     Only non-None fields will be updated
     """
     try:
-        # Check if alert exists
         existing = await db.alerts.find_one({'alert_id': alert_id})
         if not existing:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f'Alert {alert_id} not found'
             )
 
-        # Prepare update data (exclude None values)
         update_data = alert_update.model_dump(exclude_none=True)
         if not update_data:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail='No fields to update'
             )
 
-        # Add updated_at timestamp
         update_data['updated_at'] = datetime.utcnow()
 
-        # Update in database
         await db.alerts.update_one(
-            {'alert_id': alert_id}, 
+            {'alert_id': alert_id},
             {'$set': update_data}
         )
 
-        # Fetch updated alert
         updated_alert = await db.alerts.find_one({'alert_id': alert_id})
 
         return SuccessResponse(
             message='Alert updated successfully',
-            data=AlertResponse(**updated_alert), # type: ignore
+            data=AlertResponse(**updated_alert),  # type: ignore
         )
     except HTTPException:
         raise
@@ -231,31 +237,31 @@ async def update_alert(
 
 @router.patch('/{alert_id}/status', response_model=SuccessResponse[AlertResponse])
 async def update_alert_status(
-    alert_id: str, 
-    status_update: AlertStatusUpdate, 
+    alert_id: str,
+    status_update: AlertStatusUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
     Update alert status with lifecycle tracking
-    
+
     Automatically tracks status changes in lifecycle_history
     """
     try:
         service = get_alert_service()
-        
+
         updated_alert = await service.update_status(
             alert_id=alert_id,
             new_status=status_update.status,
             event_metadata={"reason": status_update.reason} if status_update.reason else {}
         )
-        
+
         return SuccessResponse(
             message=f'Alert status updated to {status_update.status}',
             data=AlertResponse(**updated_alert),
         )
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
     except Exception as e:
@@ -270,7 +276,7 @@ async def update_alert_status(
 
 @router.delete('/{alert_id}', response_model=SuccessResponse[None])
 async def delete_alert(
-    alert_id: str, 
+    alert_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[None]:
     """
@@ -278,15 +284,15 @@ async def delete_alert(
     """
     try:
         result = await db.alerts.delete_one({'alert_id': alert_id})
-        
+
         if result.deleted_count == 0:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f'Alert {alert_id} not found'
             )
-        
+
         return SuccessResponse(
-            message=f'Alert {alert_id} deleted successfully', 
+            message=f'Alert {alert_id} deleted successfully',
             data=None
         )
     except HTTPException:
