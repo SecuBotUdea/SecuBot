@@ -177,7 +177,7 @@ Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persis
 
 1. **Vercel (API serverless)**
    - Mantén `vercel.json` para exponer la API FastAPI.
-   - **No configures** `DISCORD_BOT_TOKEN` en Vercel (no definas esa variable allí).
+   - **No configures** `DISCORD_BOT_TOKEN` en Vercel (no definas esa variable allí), porque eso intentaría iniciar el bot en un entorno serverless sin conexión persistente.
 
 2. **Render (proceso persistente para bot)**
    - Usa `render.yaml` de este repo o configura manualmente un Web Service.
@@ -193,7 +193,7 @@ Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persis
      - `DISCORD_NOTIFICATIONS_ENABLED=true`
 
 3. **Riesgos en capa gratuita de Render**
-   - Si el servicio entra en sleep, el bot se desconecta y no escuchará `!rescan`.
+   - Si el servicio entra en sleep (normalmente tras inactividad), el bot se desconecta y no escuchará `!rescan` hasta que el servicio despierte.
    - Para operación estable 24/7, usa un plan always-on.
 
 ### Configurar GitHub Secrets
