@@ -22,6 +22,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for creating a new user"""
 
+    user_id: str | None = Field(None, min_length=3, max_length=100, description='Custom user ID (defaults to username)')
     metadata: dict[str, Any] = Field(default_factory=dict, description='Additional user metadata')
 
 
@@ -39,6 +40,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     """Schema for user responses"""
 
+    user_id: str = Field(..., description='Unique user ID used for gamification')
     is_active: bool = Field(..., description='Whether user is active')
     metadata: dict[str, Any] = Field(default_factory=dict, description='Additional user metadata')
     created_at: datetime = Field(..., description='Creation timestamp')

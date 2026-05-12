@@ -45,6 +45,13 @@ class Settings(BaseSettings):
             raise ValueError('MongoDB URI must start with mongodb:// or mongodb+srv://')
         return v
 
+    @field_validator('normalizer_url')
+    @classmethod
+    def validate_normalizer_url(cls, v: str) -> str:
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('NORMALIZER_URL debe empezar con http:// o https://')
+        return v.rstrip('/')
+
     # ============================================
     # Discord Integration
     # ============================================
@@ -61,6 +68,10 @@ class Settings(BaseSettings):
     # ============================================
     # Rescan Configuration
     # ============================================
+    normalizer_url: str = Field(
+        default='https://parser-dependabot.vercel.app',
+        description='URL base del normalizador de alertas',
+    )
     rescan_delay_seconds: int = Field(
         default=300, description='Delay antes de ejecutar rescan (5 minutos default)'
     )

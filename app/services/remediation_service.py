@@ -88,10 +88,10 @@ class RemediationService:
             raise ValueError(f"Alerta {alert_id} no encontrada")
         
         # 2. Validar que la alerta está abierta
-        if alert["status"] not in ["open", "reopened"]:
+        if alert["status"] not in ["open", "reopened", "verified_persists"]:
             raise ValueError(
                 f"Alerta {alert_id} tiene status '{alert['status']}'. "
-                f"Solo se pueden remediar alertas con status 'open' o 'reopened'"
+                f"Solo se pueden remediar alertas con status 'open', 'reopened' o 'verified_persists'"
             )
         
         now = datetime.now(timezone.utc)
