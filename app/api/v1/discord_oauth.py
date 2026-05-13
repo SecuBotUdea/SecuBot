@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Discord OAuth2 Router - Onboarding automático de webhooks por servidor.
 """
@@ -94,13 +93,15 @@ async def discord_oauth_callback(
                 headers={'Content-Type': 'application/x-www-form-urlencoded'},
                 timeout=15.0,
             )
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail='Timeout comunicando con Discord OAuth2.')
+    except httpx.TimeoutException as e:
+        raise HTTPException(
+            status_code=504, detail='Timeout comunicando con Discord OAuth2.'
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=502,
             detail=f'Error de red al consumir Discord OAuth2: {type(e).__name__}: {e}',
-        )
+        ) from e
 
     if response.status_code >= 400:
         raise HTTPException(

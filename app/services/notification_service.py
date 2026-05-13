@@ -36,10 +36,9 @@ class NotificationService:
 
             normalized_payload = obj.get('normalized_payload')
             if isinstance(normalized_payload, dict):
-                payload_guild = (
-                    normalized_payload.get('discord_guild_id')
-                    or normalized_payload.get('guild_id')
-                )
+                payload_guild = normalized_payload.get(
+                    'discord_guild_id'
+                ) or normalized_payload.get('guild_id')
                 if payload_guild:
                     return str(payload_guild)
 

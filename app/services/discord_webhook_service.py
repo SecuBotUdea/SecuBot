@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 DiscordWebhookService - Persistencia y resolución de webhooks por servidor (guild).
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from app.database.mongodb import get_database
 
@@ -40,7 +39,10 @@ class DiscordWebhookService:
             upsert=True,
         )
 
-        stored = await self.collection.find_one({'guild_id': str(guild_id)})
+        stored = cast(
+            dict[str, Any] | None,
+            await self.collection.find_one({'guild_id': str(guild_id)}),
+        )
         if not stored:
             raise ValueError(f'No se pudo persistir webhook para guild {guild_id}')
 
@@ -49,8 +51,9 @@ class DiscordWebhookService:
 
     async def get_webhook_by_guild_id(self, guild_id: str) -> dict[str, Any] | None:
         """Obtiene webhook activo por guild_id."""
-        webhook = await self.collection.find_one(
-            {'guild_id': str(guild_id), 'active': True}
+        webhook = cast(
+            dict[str, Any] | None,
+            await self.collection.find_one({'guild_id': str(guild_id), 'active': True}),
         )
         if webhook:
             webhook['_id'] = str(webhook['_id'])

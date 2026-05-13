@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Discord Client - Envia notificaciones a Discord usando Incoming Webhooks
 """
@@ -30,7 +29,9 @@ class DiscordClient:
                 if webhook_url:
                     return webhook_url, True
             except Exception as e:
-                logger.error(f'Error resolving guild webhook for {guild_id}: {type(e).__name__}: {e}')
+                logger.error(
+                    f'Error resolving guild webhook for {guild_id}: {type(e).__name__}: {e}'
+                )
 
         return self.default_webhook_url, False
 
@@ -71,11 +72,7 @@ class DiscordClient:
                 logger.error(
                     f'Failed to send Discord message: {response.status_code} - {response.text}'
                 )
-                if (
-                    using_guild_webhook
-                    and guild_id
-                    and response.status_code in (401, 403, 404)
-                ):
+                if using_guild_webhook and guild_id and response.status_code in (401, 403, 404):
                     await self.webhook_service.deactivate_webhook(
                         guild_id,
                         reason=f'Webhook invalid ({response.status_code})',

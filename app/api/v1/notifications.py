@@ -249,9 +249,7 @@ async def send_test_alert_reopened():
     success = await notification_service.notify_alert_reopened(test_alert)
 
     if not success:
-        raise HTTPException(
-            status_code=500, detail='Failed to send reopened alert notification.'
-        )
+        raise HTTPException(status_code=500, detail='Failed to send reopened alert notification.')
 
     return {
         'success': True,
