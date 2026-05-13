@@ -364,6 +364,41 @@ class AlertService:
         
         return alerts
 
+    async def acquire_rescan_lock(
+        self, alert_id: str, locked_by: str, timeout_minutes: int = 5
+    ) -> bool:
+        """
+        Intenta adquirir un lock atómico para el rescan de una alerta.
+
+        Usa findOneAndUpdate para garantizar atomicidad — solo un proceso
+        puede adquirir el lock si no existe o si expiró.
+
+        Returns:
+            True si el lock fue adquirido, False si ya está tomado.
+        """
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        lock_expiry = now - timedelta(minutes=timeout_minutes)
+
+        result = await self.collection.find_one_and_update(
+            {
+                "alert_id": alert_id,
+                "$or": [
+                    {"rescan_lock": {"$exists": False}},
+                    {"rescan_lock.locked_at": {"$lt": lock_expiry}},
+                ],
+            },
+            {"$set": {"rescan_lock": {"locked_at": now, "locked_by": locked_by}}},
+        )
+        return result is not None
+
+    async def release_rescan_lock(self, alert_id: str) -> None:
+        """Libera el lock de rescan de una alerta."""
+        await self.collection.update_one(
+            {"alert_id": alert_id},
+            {"$unset": {"rescan_lock": ""}},
+        )
+
     async def delete_alert(self, alert_id: str) -> bool:
         """Eliminar una alerta permanentemente"""
         result = await self.collection.delete_one({"alert_id": alert_id})

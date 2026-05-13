@@ -37,9 +37,10 @@ async def create_user(
             username=user_data.username,
             email=user_data.email,
             display_name=user_data.display_name,
-            role=user_data.role if hasattr(user_data, 'role') else "developer",
-            team_id=user_data.team_id if hasattr(user_data, 'team_id') else None,
-            metadata=user_data.metadata if hasattr(user_data, 'metadata') else None
+            role=user_data.role,
+            team_id=user_data.team_id,
+            metadata=user_data.metadata,
+            user_id=user_data.user_id,
         )
         
         return SuccessResponse(

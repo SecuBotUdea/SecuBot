@@ -11,6 +11,7 @@ import aiohttp
 
 from app.database.mongodb import get_database
 from app.utils.logger import get_logger
+from config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -63,12 +64,11 @@ class RescanService:
     - Guarda el resultado en la colección 'rescans'
     """
     
-    NORMALIZER_URL = "https://parser-dependabot.vercel.app"
-    
     def __init__(self):
         self.db = get_database()
         self.collection = self.db.rescans
-    
+        self.normalizer_url = settings.normalizer_url
+
     async def check_alert_exists(
         self,
         alert_id: str,
@@ -92,7 +92,7 @@ class RescanService:
         """
         now = datetime.now(timezone.utc)
         rescan_id = self._generate_rescan_id()
-        url = f"{self.NORMALIZER_URL}/alerts/{alert_id}"
+        url = f"{self.normalizer_url}/alerts/{alert_id}"
         
         try:
             async with aiohttp.ClientSession() as session:

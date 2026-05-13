@@ -34,31 +34,33 @@ async def on_ready() -> None:
 
 
 @bot.command(name='rescan')
-async def rescan_command(ctx: commands.Context, alert_id: Optional[str] = None) -> None:
+async def rescan_command(ctx: commands.Context, alert_id: Optional[str] = None, user_id: Optional[str] = None) -> None:
     """
-    Verifica si una vulnerabilidad sigue presente consultando el normalizador.
+    Ejecuta el flujo completo de re-verificación para una alerta (incluye gamificación).
 
-    Uso: !rescan <alert_id>
+    Uso: !rescan <alert_id> [user_id]
 
-    Ejemplo: !rescan alert_abc123
+    Ejemplos:
+      !rescan alert_abc123
+      !rescan alert_abc123 user-dev-001
     """
     if not alert_id:
         await ctx.send(
             '⚠️ Debes proporcionar un `alert_id`.\n'
-            'Uso: `!rescan <alert_id>`\n'
-            'Ejemplo: `!rescan alert_abc123`'
+            'Uso: `!rescan <alert_id> [user_id]`\n'
+            'Ejemplo: `!rescan alert_abc123 user-dev-001`'
         )
         return
 
     # Lazy import para evitar dependencias circulares en tiempo de importación
     from app.services.alert_service import get_alert_service
-    from app.services.rescan_service import get_rescan_service
-    from app.integrations.discord.message_builder import discord_message_builder
+    from app.services.remediation_service import get_remediation_service
+    from app.services.user_service import get_user_service
 
     await ctx.send(f'🔍 Ejecutando rescan para `{alert_id}`...')
 
     try:
-        # 1. Obtener la alerta de MongoDB
+        # 1. Verificar que la alerta existe en MongoDB
         alert_service = get_alert_service()
         alert_data = await alert_service.get_alert(alert_id)
 
@@ -66,37 +68,93 @@ async def rescan_command(ctx: commands.Context, alert_id: Optional[str] = None) 
             await ctx.send(f'❌ Alerta `{alert_id}` no encontrada en la base de datos.')
             return
 
-        local_reopen_count = alert_data.get('reopen_count', 0)
+        alert_status = alert_data.get('status')
+        if alert_status == 'pending_verification':
+            await ctx.send(
+                f'⏳ La alerta `{alert_id}` ya tiene un rescan en curso. '
+                'Espera a que termine antes de lanzar otro.'
+            )
+            return
+        if alert_status not in ('open', 'reopened', 'verified_persists'):
+            await ctx.send(
+                f'⚠️ La alerta `{alert_id}` tiene status `{alert_status}` '
+                'y no puede ser rescaneada.'
+            )
+            return
 
-        # 2. Ejecutar el rescan contra el normalizador
-        rescan_service = get_rescan_service()
-        result = await rescan_service.check_alert_exists(
+        remediation_service = get_remediation_service()
+
+        # 2. Validar user_id si fue proporcionado
+        effective_user_id = f'discord:{ctx.author.id}'
+        if user_id:
+            user_service = get_user_service()
+            user_data = await user_service.get_user_by_user_id(user_id)
+            if not user_data:
+                await ctx.send(
+                    f'⚠️ El usuario `{user_id}` no existe en SecuBot. '
+                    'Verifica el ID con `GET /api/v1/users/`.'
+                )
+                return
+            effective_user_id = user_id
+
+        # 3. Adquirir lock atómico para evitar rescans simultáneos
+        lock_acquired = await alert_service.acquire_rescan_lock(
             alert_id=alert_id,
-            local_reopen_count=local_reopen_count,
+            locked_by=effective_user_id,
         )
+        if not lock_acquired:
+            await ctx.send(
+                f'⏳ Otro rescan para `{alert_id}` ya está en ejecución. '
+                'Intenta de nuevo en unos minutos.'
+            )
+            return
 
-        # 3. Construir y enviar embed con el resultado
-        payload = discord_message_builder.build_rescan_result_embed(
-            alert_id=result.alert_id,
-            still_exists=result.still_exists,
-            local_reopen_count=result.local_reopen_count,
-            normalizer_reopen_count=result.normalizer_reopen_count,
-        )
+        try:
+            # 4. Buscar remediación pendiente; si no existe, crear una desde Discord
+            remediations = await remediation_service.get_remediations_by_alert(alert_id)
+            pending = next((r for r in remediations if r['status'] == 'pending'), None)
 
-        embed_data = payload['embeds'][0]
-        embed = discord.Embed(
-            title=embed_data.get('title', ''),
-            description=embed_data.get('description', ''),
-            color=embed_data.get('color', 0x808080),
-        )
-        for field in embed_data.get('fields', []):
-            embed.add_field(
-                name=field['name'],
-                value=field['value'],
-                inline=field.get('inline', True),
+            if not pending:
+                new_rem = await remediation_service.create_remediation(
+                    alert_id=alert_id,
+                    user_id=effective_user_id,
+                    remediation_type='user_mark',
+                    notes=f'Rescan solicitado desde Discord por {ctx.author.display_name}',
+                    auto_trigger_rescan=False,
+                )
+                pending = new_rem
+
+            # 5. Ejecutar rescan completo: normalizer + gamificación + notificación Discord
+            gamification_result = await remediation_service.trigger_rescan_for_remediation(
+                remediation_id=pending['remediation_id']
             )
 
-        await ctx.send(embed=embed)
+            # 6. Leer remediación actualizada para conocer el veredicto final
+            updated = await remediation_service.get_remediation(pending['remediation_id'])
+            still_exists = updated['status'] == 'failed_verification'
+
+            points_awarded = sum(
+                p.get('points', 0) for p in gamification_result.get('points_awarded', [])
+            )
+            penalties = abs(sum(
+                p.get('points', 0) for p in gamification_result.get('penalties_applied', [])
+            ))
+
+            if still_exists:
+                await ctx.send(
+                    f'🔴 **Vulnerabilidad persiste** en `{alert_id}`.\n'
+                    f'Penalización: `{penalties}` puntos. '
+                    'Revisa el canal de notificaciones para el detalle completo.'
+                )
+            else:
+                await ctx.send(
+                    f'✅ **Vulnerabilidad resuelta** en `{alert_id}`.\n'
+                    f'Puntos ganados: `+{points_awarded}`. '
+                    'Revisa el canal de notificaciones para el detalle completo.'
+                )
+
+        finally:
+            await alert_service.release_rescan_lock(alert_id)
 
     except Exception as e:
         logger.error(f'Error ejecutando rescan para {alert_id}: {type(e).__name__}: {e}')

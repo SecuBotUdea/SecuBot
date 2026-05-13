@@ -13,7 +13,11 @@ class Settings(BaseSettings):
     """Configuración global de la aplicación"""
 
     model_config = SettingsConfigDict(
-        env_file='.env', env_file_encoding='utf-8', env_prefix="",case_sensitive=False, extra='ignore'
+        env_file='.env',
+        env_file_encoding='utf-8',
+        env_prefix='',
+        case_sensitive=False,
+        extra='ignore',
     )
 
     # ============================================
@@ -45,12 +49,24 @@ class Settings(BaseSettings):
             raise ValueError('MongoDB URI must start with mongodb:// or mongodb+srv://')
         return v
 
+    @field_validator('normalizer_url')
+    @classmethod
+    def validate_normalizer_url(cls, v: str) -> str:
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('NORMALIZER_URL debe empezar con http:// o https://')
+        return v.rstrip('/')
+
     # ============================================
     # Discord Integration
     # ============================================
     discord_webhook_url: str | None = Field(default=None)
     discord_bot_token: str | None = Field(default=None)
     discord_notifications_enabled: bool = Field(default=False)
+    discord_oauth_client_id: str | None = Field(default=None)
+    discord_oauth_client_secret: str | None = Field(default=None)
+    discord_oauth_redirect_uri: str | None = Field(default=None)
+    discord_oauth_scopes: str = Field(default='bot webhook.incoming')
+    discord_oauth_permissions: str = Field(default='0')
 
     # ============================================
     # Rules Configuration
@@ -61,6 +77,10 @@ class Settings(BaseSettings):
     # ============================================
     # Rescan Configuration
     # ============================================
+    normalizer_url: str = Field(
+        default='https://parser-dependabot.vercel.app',
+        description='URL base del normalizador de alertas',
+    )
     rescan_delay_seconds: int = Field(
         default=300, description='Delay antes de ejecutar rescan (5 minutos default)'
     )

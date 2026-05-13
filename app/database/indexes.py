@@ -24,12 +24,13 @@ async def _safe_create_index(collection, keys, log_label: str, **kwargs) -> None
     """
     try:
         await collection.create_index(keys, **kwargs)
-        logger.info(f"✅ Índice creado: {log_label}")
+        logger.info(f'✅ Índice creado: {log_label}')
     except OperationFailure as e:
         if e.code in (_INDEX_OPTIONS_CONFLICT, _INDEX_KEY_SPECS_CONFLICT):
+            details = e.details or {}
             logger.warning(
                 f"⚠️  Índice '{log_label}' ya existe con un nombre diferente "
-                f"(probablemente de una migración anterior). Se omite. [{e.details.get('errmsg', e)}]"
+                f'(probablemente de una migración anterior). Se omite. [{details.get("errmsg", str(e))}]'
             )
         else:
             logger.error(f"❌ Error creando índice '{log_label}': {e}")
@@ -46,31 +47,31 @@ async def create_indexes() -> None:
     """
     try:
         db = get_database()
-        logger.info("Creando índices en MongoDB...")
+        logger.info('Creando índices en MongoDB...')
 
         # ==========================================
         # ALERTS
         # ==========================================
         await _safe_create_index(
             db.alerts,
-            [("signature", ASCENDING)],
-            "alerts.signature (unique)",
+            [('signature', ASCENDING)],
+            'alerts.signature (unique)',
             unique=True,
-            name="idx_signature_unique",
+            name='idx_signature_unique',
         )
 
         await _safe_create_index(
             db.alerts,
-            [("status", ASCENDING), ("severity", DESCENDING)],
-            "alerts.status + severity",
-            name="idx_status_severity",
+            [('status', ASCENDING), ('severity', DESCENDING)],
+            'alerts.status + severity',
+            name='idx_status_severity',
         )
 
         await _safe_create_index(
             db.alerts,
-            [("first_seen", DESCENDING)],
-            "alerts.first_seen",
-            name="idx_first_seen",
+            [('first_seen', DESCENDING)],
+            'alerts.first_seen',
+            name='idx_first_seen',
         )
 
         # ==========================================
@@ -78,23 +79,23 @@ async def create_indexes() -> None:
         # ==========================================
         await _safe_create_index(
             db.remediations,
-            [("alert_id", ASCENDING)],
-            "remediations.alert_id",
-            name="idx_alert_id",
+            [('alert_id', ASCENDING)],
+            'remediations.alert_id',
+            name='idx_alert_id',
         )
 
         await _safe_create_index(
             db.remediations,
-            [("user_id", ASCENDING), ("created_at", DESCENDING)],
-            "remediations.user_id + created_at",
-            name="idx_user_created",
+            [('user_id', ASCENDING), ('created_at', DESCENDING)],
+            'remediations.user_id + created_at',
+            name='idx_user_created',
         )
 
         await _safe_create_index(
             db.remediations,
-            [("status", ASCENDING)],
-            "remediations.status",
-            name="idx_status",
+            [('status', ASCENDING)],
+            'remediations.status',
+            name='idx_status',
         )
 
         # ==========================================
@@ -102,16 +103,16 @@ async def create_indexes() -> None:
         # ==========================================
         await _safe_create_index(
             db.point_transactions,
-            [("user_id", ASCENDING), ("timestamp", DESCENDING)],
-            "point_transactions.user_id + timestamp",
-            name="idx_user_timestamp",
+            [('user_id', ASCENDING), ('timestamp', DESCENDING)],
+            'point_transactions.user_id + timestamp',
+            name='idx_user_timestamp',
         )
 
         await _safe_create_index(
             db.point_transactions,
-            [("rule_id", ASCENDING)],
-            "point_transactions.rule_id",
-            name="idx_rule_id",
+            [('rule_id', ASCENDING)],
+            'point_transactions.rule_id',
+            name='idx_rule_id',
         )
 
         # ==========================================
@@ -119,19 +120,19 @@ async def create_indexes() -> None:
         # ==========================================
         await _safe_create_index(
             db.users,
-            [("user_id", ASCENDING)],
-            "users.user_id (unique)",
+            [('user_id', ASCENDING)],
+            'users.user_id (unique)',
             unique=True,
-            name="idx_user_id_unique",
+            name='idx_user_id_unique',
         )
 
         await _safe_create_index(
             db.users,
-            [("email", ASCENDING)],
-            "users.email (unique, sparse)",
+            [('email', ASCENDING)],
+            'users.email (unique, sparse)',
             unique=True,
             sparse=True,
-            name="idx_email_unique",
+            name='idx_email_unique',
         )
 
         # ==========================================
@@ -139,17 +140,17 @@ async def create_indexes() -> None:
         # ==========================================
         await _safe_create_index(
             db.awards,
-            [("user_id", ASCENDING), ("badge_id", ASCENDING)],
-            "awards.user_id + badge_id (unique)",
+            [('user_id', ASCENDING), ('badge_id', ASCENDING)],
+            'awards.user_id + badge_id (unique)',
             unique=True,
-            name="idx_user_badge_unique",
+            name='idx_user_badge_unique',
         )
 
         await _safe_create_index(
             db.awards,
-            [("awarded_at", DESCENDING)],
-            "awards.awarded_at",
-            name="idx_awarded_at",
+            [('awarded_at', DESCENDING)],
+            'awards.awarded_at',
+            name='idx_awarded_at',
         )
 
         # ==========================================
@@ -157,22 +158,40 @@ async def create_indexes() -> None:
         # ==========================================
         await _safe_create_index(
             db.rescan_results,
-            [("remediation_id", ASCENDING)],
-            "rescan_results.remediation_id",
-            name="idx_remediation_id",
+            [('remediation_id', ASCENDING)],
+            'rescan_results.remediation_id',
+            name='idx_remediation_id',
         )
 
         await _safe_create_index(
             db.rescan_results,
-            [("alert_id", ASCENDING), ("executed_at", DESCENDING)],
-            "rescan_results.alert_id + executed_at",
-            name="idx_alert_executed",
+            [('alert_id', ASCENDING), ('executed_at', DESCENDING)],
+            'rescan_results.alert_id + executed_at',
+            name='idx_alert_executed',
         )
 
-        logger.info("🎉 Inicialización de índices completada")
+        # ==========================================
+        # DISCORD WEBHOOKS
+        # ==========================================
+        await _safe_create_index(
+            db.discord_webhooks,
+            [('guild_id', ASCENDING)],
+            'discord_webhooks.guild_id (unique)',
+            unique=True,
+            name='idx_discord_guild_unique',
+        )
+
+        await _safe_create_index(
+            db.discord_webhooks,
+            [('active', ASCENDING), ('updated_at', DESCENDING)],
+            'discord_webhooks.active + updated_at',
+            name='idx_discord_active_updated',
+        )
+
+        logger.info('🎉 Inicialización de índices completada')
 
     except Exception as e:
-        logger.error(f"❌ Error inesperado durante la creación de índices: {e}")
+        logger.error(f'❌ Error inesperado durante la creación de índices: {e}')
         # No lanzamos excepción para no romper el inicio de la app
         # Los índices no son críticos para que la app funcione
 
@@ -186,20 +205,21 @@ async def drop_all_indexes() -> None:
         db = get_database()
 
         collections = [
-            "alerts",
-            "remediations",
-            "point_transactions",
-            "users",
-            "awards",
-            "rescan_results"
+            'alerts',
+            'remediations',
+            'point_transactions',
+            'users',
+            'awards',
+            'rescan_results',
+            'discord_webhooks',
         ]
 
         for collection_name in collections:
             await db[collection_name].drop_indexes()
-            logger.info(f"🗑️  Índices eliminados: {collection_name}")
+            logger.info(f'🗑️  Índices eliminados: {collection_name}')
 
     except Exception as e:
-        logger.error(f"❌ Error eliminando índices: {e}")
+        logger.error(f'❌ Error eliminando índices: {e}')
 
 
 async def list_indexes() -> dict:

@@ -33,7 +33,8 @@ class UserService:
         display_name: Optional[str] = None,
         role: str = "developer",
         team_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Crear un nuevo usuario.
@@ -66,9 +67,10 @@ class UserService:
             raise ValueError(f"Rol inválido. Valores permitidos: {valid_roles}")
         
         now = datetime.now(timezone.utc)
-        
+
         # Construir documento del usuario
         user_doc = {
+            "user_id": user_id or username,
             "username": username,
             "email": email,
             "display_name": display_name or username,
@@ -119,6 +121,15 @@ class UserService:
         Obtener un usuario por su email.
         """
         user = await self.collection.find_one({"email": email})
+        if user:
+            user["_id"] = str(user["_id"])
+        return user
+
+    async def get_user_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtener un usuario por su user_id personalizado (campo gamificación).
+        """
+        user = await self.collection.find_one({"user_id": user_id})
         if user:
             user["_id"] = str(user["_id"])
         return user

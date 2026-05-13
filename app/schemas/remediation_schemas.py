@@ -14,7 +14,7 @@ class RemediationBase(BaseModel):
 
     alert_id: str = Field(..., description='Alert being remediated')
     user_id: str = Field(..., description='User performing remediation')
-    team_id: str = Field(..., description='Team responsible')
+    team_id: str | None = Field(None, description='Team responsible')
     type: str = Field(..., description='Type of remediation action')
     notes: str | None = Field(None, description='Additional notes or comments')
 
