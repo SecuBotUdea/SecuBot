@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import alerts, gamification, notifications, remediations, users
+from app.api.v1 import alerts, discord_oauth, gamification, notifications, remediations, users
 from app.database.indexes import create_indexes
 from app.database.mongodb import close_mongo_connection, connect_to_mongo
 from app.tasks.scheduler import get_scheduler
@@ -85,6 +85,7 @@ async def health_check():
 
 # Include routers
 app.include_router(notifications.router, prefix='/api/v1', tags=['Notifications'])
+app.include_router(discord_oauth.router, prefix='/api/v1', tags=['Discord OAuth'])
 app.include_router(alerts.router, prefix='/api/v1/alerts', tags=['Alerts'])
 app.include_router(users.router, prefix='/api/v1/users', tags=['Users'])
 app.include_router(remediations.router, prefix='/api/v1/remediations', tags=['Remediations'])

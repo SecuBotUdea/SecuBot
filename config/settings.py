@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     discord_webhook_url: str | None = Field(default=None)
     discord_bot_token: str | None = Field(default=None)
     discord_notifications_enabled: bool = Field(default=False)
+    discord_oauth_client_id: str | None = Field(default=None)
+    discord_oauth_client_secret: str | None = Field(default=None)
+    discord_oauth_redirect_uri: str | None = Field(default=None)
+    discord_oauth_scopes: str = Field(default='bot webhook.incoming')
+    discord_oauth_permissions: str = Field(default='0')
 
     # ============================================
     # Rules Configuration

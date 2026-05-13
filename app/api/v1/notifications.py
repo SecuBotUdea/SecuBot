@@ -19,6 +19,10 @@ class TestNotificationRequest(BaseModel):
     """Request para enviar notificación de prueba"""
 
     message: str = Field(..., description='Mensaje de prueba a enviar', min_length=1)
+    guild_id: str | None = Field(
+        default=None,
+        description='Guild ID opcional para usar webhook registrado por OAuth2',
+    )
 
 
 class TestAlertRequest(BaseModel):
@@ -36,7 +40,10 @@ async def send_test_notification(request: TestNotificationRequest):
 
     Útil para verificar que la configuración del webhook funciona correctamente
     """
-    success = await notification_service.send_test_notification(request.message)
+    success = await notification_service.send_test_notification(
+        request.message,
+        guild_id=request.guild_id,
+    )
 
     if not success:
         raise HTTPException(
@@ -48,6 +55,7 @@ async def send_test_notification(request: TestNotificationRequest):
         'success': True,
         'message': 'Test notification sent successfully',
         'sent_message': request.message,
+        'guild_id': request.guild_id,
     }
 
 
