@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.dependencies import get_alert_filters, get_db, get_pagination
-from app.models.alert import Alert
 from app.schemas.alert_schemas import (
     AlertCreate,
     AlertResponse,
@@ -98,7 +97,7 @@ async def create_alert(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         import traceback
         print(f"Error creating alert: {str(e)}")
@@ -106,7 +105,7 @@ async def create_alert(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create alert: {str(e)}"
-        )
+        ) from e
 
 
 @router.get('/', response_model=PaginatedResponse[AlertResponse])
@@ -150,7 +149,7 @@ async def list_alerts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list alerts: {str(e)}"
-        )
+        ) from e
 
 
 @router.get('/{alert_id}', response_model=AlertResponse)
@@ -181,7 +180,7 @@ async def get_alert(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get alert: {str(e)}"
-        )
+        ) from e
 
 
 @router.patch('/{alert_id}', response_model=SuccessResponse[AlertResponse])
@@ -232,7 +231,7 @@ async def update_alert(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update alert: {str(e)}"
-        )
+        ) from e
 
 
 @router.patch('/{alert_id}/status', response_model=SuccessResponse[AlertResponse])
@@ -263,7 +262,7 @@ async def update_alert_status(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         import traceback
         print(f"Error updating alert status: {str(e)}")
@@ -271,7 +270,7 @@ async def update_alert_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update alert status: {str(e)}"
-        )
+        ) from e
 
 
 @router.delete('/{alert_id}', response_model=SuccessResponse[None])
@@ -304,4 +303,4 @@ async def delete_alert(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete alert: {str(e)}"
-        )
+        ) from e
