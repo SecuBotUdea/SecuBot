@@ -60,11 +60,11 @@ jobs:
     
     - name: Run tests with coverage
       env:
-        MONGODB_URI: ${{ secrets.MONGODB_URI_TEST }}
+        MONGODB_URI: ${{ secrets.MONGODB_URI_TEST || 'mongodb://localhost:27017' }}
         DATABASE_NAME: secubot_test_${{ github.run_id }}
         ENVIRONMENT: testing
       run: |
-        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
+        pytest
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -93,7 +93,7 @@ jobs:
         pip install safety bandit
     
     - name: Run Safety check (dependencies)
-      run: safety check --json
+      run: safety scan
       continue-on-error: true
     
     - name: Run Bandit (code security)
