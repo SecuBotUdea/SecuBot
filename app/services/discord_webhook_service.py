@@ -29,13 +29,12 @@ class DiscordWebhookService:
             'updated_at': now,
         }
 
-        existing = await self.collection.find_one({'guild_id': str(guild_id)})
-        if existing is None:
-            data['created_at'] = now
-
         await self.collection.update_one(
             {'guild_id': str(guild_id)},
-            {'$set': data},
+            {
+                '$set': data,
+                '$setOnInsert': {'created_at': now},
+            },
             upsert=True,
         )
 

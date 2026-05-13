@@ -21,7 +21,16 @@ class NotificationService:
         self.bot_username = settings.app_name
 
     def _extract_guild_id(self, *objects: dict | None) -> str | None:
-        """Extrae guild_id desde payloads comunes."""
+        """
+        Extrae guild_id desde múltiples objetos de contexto.
+
+        Revisa en orden:
+        1) Campos directos: discord_guild_id / guild_id
+        2) Campos en metadata: metadata.discord_guild_id / metadata.guild_id
+        3) Campos en normalized_payload: normalized_payload.discord_guild_id / normalized_payload.guild_id
+
+        Retorna el primer valor encontrado o None si no existe.
+        """
         for obj in objects:
             if not obj:
                 continue
