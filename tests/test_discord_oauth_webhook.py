@@ -46,7 +46,7 @@ async def test_install_url_contains_required_oauth_params(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_discord_oauth_callback_persists_webhook(monkeypatch):
+async def test_oauth_callback_persists_webhook(monkeypatch):
     monkeypatch.setattr(settings, 'discord_oauth_client_id', 'client-123')
     monkeypatch.setattr(settings, 'discord_oauth_client_secret', 'secret-456')
     monkeypatch.setattr(settings, 'discord_oauth_redirect_uri', 'https://secubot.test/callback')

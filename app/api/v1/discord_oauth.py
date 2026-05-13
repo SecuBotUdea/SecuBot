@@ -105,9 +105,13 @@ async def discord_oauth_callback(
         ) from e
 
     if response.status_code >= 400:
+        response_detail = response.text[:500] if response.text else 'Sin detalle'
         raise HTTPException(
             status_code=400,
-            detail=f'Error de Discord OAuth2 token endpoint: {response.status_code}',
+            detail=(
+                f'Error de Discord OAuth2 token endpoint: {response.status_code}. '
+                f'Detalle: {response_detail}'
+            ),
         )
 
     token_data = response.json()
