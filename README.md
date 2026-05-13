@@ -227,6 +227,21 @@ curl -X POST https://<render-service-url>/api/v1/notifications/test \
 !rescan <alert_id>
 ```
 
+## 🔗 OAuth2 para webhook automático de Discord
+
+Para evitar configurar `DISCORD_WEBHOOK_URL` manualmente por cada servidor:
+
+1. Configura variables:
+   - `DISCORD_OAUTH_CLIENT_ID`
+   - `DISCORD_OAUTH_CLIENT_SECRET`
+   - `DISCORD_OAUTH_REDIRECT_URI` (ej: `https://tu-api.com/api/v1/discord/oauth/callback`)
+2. Obtén la URL de instalación:
+   - `GET /api/v1/discord/oauth/install-url`
+3. Autoriza la app en Discord con scope `webhook.incoming` (y `bot` si necesitas comandos).
+4. Discord redirige al callback:
+   - `GET /api/v1/discord/oauth/callback?code=...`
+5. SecuBot guarda el webhook en MongoDB por `guild_id` y lo usa automáticamente en notificaciones.
+
 ## 📊 Arquitectura
 
 ### Componentes Principales

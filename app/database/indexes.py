@@ -169,6 +169,24 @@ async def create_indexes() -> None:
             name="idx_alert_executed",
         )
 
+        # ==========================================
+        # DISCORD WEBHOOKS
+        # ==========================================
+        await _safe_create_index(
+            db.discord_webhooks,
+            [('guild_id', ASCENDING)],
+            'discord_webhooks.guild_id (unique)',
+            unique=True,
+            name='idx_discord_guild_unique',
+        )
+
+        await _safe_create_index(
+            db.discord_webhooks,
+            [('active', ASCENDING), ('updated_at', DESCENDING)],
+            'discord_webhooks.active + updated_at',
+            name='idx_discord_active_updated',
+        )
+
         logger.info("🎉 Inicialización de índices completada")
 
     except Exception as e:
@@ -191,7 +209,8 @@ async def drop_all_indexes() -> None:
             "point_transactions",
             "users",
             "awards",
-            "rescan_results"
+            "rescan_results",
+            "discord_webhooks",
         ]
 
         for collection_name in collections:
