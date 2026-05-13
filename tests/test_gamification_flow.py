@@ -107,6 +107,14 @@ def _make_mock_db() -> MagicMock:
     mock_db.alerts.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
     mock_db.remediations.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
 
+    # count_documents / distinct used by badge_evaluator on all entity collections
+    for col in ("point_transactions", "alerts", "remediations", "rescan_results"):
+        getattr(mock_db, col).count_documents = AsyncMock(return_value=0)
+        getattr(mock_db, col).distinct = AsyncMock(return_value=[])
+        agg = MagicMock()
+        agg.to_list = AsyncMock(return_value=[])
+        getattr(mock_db, col).aggregate.return_value = agg
+
     return mock_db
 
 
