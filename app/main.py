@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     discord_task = None
     if settings.discord_bot_token:
         from app.integrations.discord.discord_bot import start_bot
+
         discord_task = asyncio.create_task(start_bot())
 
     yield
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if discord_task is not None:
         from app.integrations.discord.discord_bot import stop_bot
+
         await stop_bot()
         discord_task.cancel()
         try:
@@ -48,6 +50,7 @@ async def lifespan(app: FastAPI):
 
     scheduler.shutdown(wait=False)
     await close_mongo_connection()
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -95,4 +98,4 @@ app.include_router(gamification.router, prefix='/api/v1/gamification', tags=['Ga
 # Root endpoint
 @app.get('/', tags=['Root'])
 async def root():
-    return {"message": "Welcome to SecuBot"}
+    return {'message': 'Welcome to SecuBot'}
