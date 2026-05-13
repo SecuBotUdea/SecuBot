@@ -7,6 +7,7 @@ from app.integrations.discord.message_builder import discord_message_builder
 from app.models.alert import Alert
 from app.models.remediation import Remediation
 from app.utils.logger import get_logger
+from config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -17,6 +18,7 @@ class NotificationService:
     def __init__(self):
         self.discord = discord_client
         self.builder = discord_message_builder
+        self.bot_username = settings.app_name
 
     def _extract_guild_id(self, *objects: dict | None) -> str | None:
         """Extrae guild_id desde payloads comunes."""
@@ -205,7 +207,7 @@ class NotificationService:
             bool: True si se envio correctamente
         """
         try:
-            payload = {'content': f'🧪 Test: {message}', 'username': 'SecuBot'}
+            payload = {'content': f'🧪 Test: {message}', 'username': self.bot_username}
             success = await self.discord.send_message(payload, guild_id=guild_id)
 
             if success:

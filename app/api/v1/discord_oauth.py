@@ -2,7 +2,7 @@
 Discord OAuth2 Router - Onboarding automático de webhooks por servidor.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -149,7 +149,7 @@ async def discord_oauth_callback(
             else None,
             'oauth_scope': token_data.get('scope'),
             'oauth_state': state,
-            'last_validated_at': datetime.utcnow(),
+            'last_validated_at': datetime.now(timezone.utc),
             'active': True,
         }
     )

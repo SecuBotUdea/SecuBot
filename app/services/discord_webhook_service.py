@@ -2,7 +2,7 @@
 DiscordWebhookService - Persistencia y resolución de webhooks por servidor (guild).
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from app.database.mongodb import get_database
@@ -21,7 +21,7 @@ class DiscordWebhookService:
         if not guild_id:
             raise ValueError('guild_id es requerido para guardar webhook')
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         data = {
             **webhook_data,
             'guild_id': str(guild_id),
@@ -70,7 +70,10 @@ class DiscordWebhookService:
 
     async def deactivate_webhook(self, guild_id: str, reason: str | None = None) -> None:
         """Marca webhook de un guild como inactivo."""
-        update_data: dict[str, Any] = {'active': False, 'updated_at': datetime.utcnow()}
+        update_data: dict[str, Any] = {
+            'active': False,
+            'updated_at': datetime.now(timezone.utc),
+        }
         if reason:
             update_data['deactivated_reason'] = reason
         await self.collection.update_one(
