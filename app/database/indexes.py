@@ -30,7 +30,7 @@ async def _safe_create_index(collection, keys, log_label: str, **kwargs) -> None
             details = e.details or {}
             logger.warning(
                 f"⚠️  Índice '{log_label}' ya existe con un nombre diferente "
-                f'(probablemente de una migración anterior). Se omite. [{details.get("errmsg", e)}]'
+                f'(probablemente de una migración anterior). Se omite. [{details.get("errmsg", str(e))}]'
             )
         else:
             logger.error(f"❌ Error creando índice '{log_label}': {e}")

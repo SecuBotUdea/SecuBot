@@ -12,6 +12,7 @@ from app.services.discord_webhook_service import get_discord_webhook_service
 from config.settings import settings
 
 router = APIRouter()
+WEBHOOK_URL_TEMPLATE = 'https://discord.com/api/webhooks/{webhook_id}/{webhook_token}'
 
 
 def _validate_oauth_settings(require_secret: bool = False) -> None:
@@ -129,7 +130,10 @@ async def discord_oauth_callback(
     webhook_token = webhook.get('token')
     webhook_url = webhook.get('url')
     if not webhook_url and webhook_id and webhook_token:
-        webhook_url = f'https://discord.com/api/webhooks/{webhook_id}/{webhook_token}'
+        webhook_url = WEBHOOK_URL_TEMPLATE.format(
+            webhook_id=webhook_id,
+            webhook_token=webhook_token,
+        )
 
     if not webhook_url:
         raise HTTPException(status_code=400, detail='No se pudo determinar URL del webhook.')

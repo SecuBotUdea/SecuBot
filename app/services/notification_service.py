@@ -57,7 +57,8 @@ class NotificationService:
             bool: True si la notificacion se envio correctamente
         """
         try:
-            effective_guild_id = guild_id or self._extract_guild_id(alert.model_dump())
+            alert_data = alert.model_dump()
+            effective_guild_id = guild_id or self._extract_guild_id(alert_data)
             success = await self.discord.send_message(
                 self.builder.build_alert_embed(alert),
                 guild_id=effective_guild_id,
@@ -93,10 +94,9 @@ class NotificationService:
             bool: True si la notificacion se envio correctamente
         """
         try:
-            effective_guild_id = guild_id or self._extract_guild_id(
-                alert.model_dump(),
-                remediation.model_dump(),
-            )
+            alert_data = alert.model_dump()
+            remediation_data = remediation.model_dump()
+            effective_guild_id = guild_id or self._extract_guild_id(alert_data, remediation_data)
             success = await self.discord.send_message(
                 self.builder.build_remediation_verified_embed(alert, remediation, points_earned),
                 guild_id=effective_guild_id,
@@ -136,10 +136,9 @@ class NotificationService:
             bool: True si la notificacion se envio correctamente
         """
         try:
-            effective_guild_id = guild_id or self._extract_guild_id(
-                alert.model_dump(),
-                remediation.model_dump(),
-            )
+            alert_data = alert.model_dump()
+            remediation_data = remediation.model_dump()
+            effective_guild_id = guild_id or self._extract_guild_id(alert_data, remediation_data)
             success = await self.discord.send_message(
                 self.builder.build_remediation_failed_embed(
                     alert,
@@ -177,7 +176,8 @@ class NotificationService:
             bool: True si la notificacion se envio correctamente
         """
         try:
-            effective_guild_id = guild_id or self._extract_guild_id(alert.model_dump())
+            alert_data = alert.model_dump()
+            effective_guild_id = guild_id or self._extract_guild_id(alert_data)
             success = await self.discord.send_message(
                 self.builder.build_alert_reopened_embed(alert),
                 guild_id=effective_guild_id,
