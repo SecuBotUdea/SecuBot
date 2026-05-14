@@ -14,7 +14,7 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description='Unique username')
     display_name: str = Field(..., max_length=100, description='Display name')
     email: EmailStr = Field(..., description='Email address')
-    role: str = Field(default='member', description='User role')
+    role: str = Field(default='developer', description='User role')
     team_id: str | None = Field(None, description='Team reference')
 
 
