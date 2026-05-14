@@ -82,11 +82,11 @@ async def rescan_command(
             return
 
         remediation_service = get_remediation_service()
+        user_service = get_user_service()
 
-        # 2. Validar user_id si fue proporcionado
+        # 2. Resolver el usuario de Discord, auto-registrándolo si no existe
         effective_user_id = f'discord:{ctx.author.id}'
         if user_id:
-            user_service = get_user_service()
             user_data = await user_service.get_user_by_user_id(user_id)
             if not user_data:
                 await ctx.send(
@@ -95,6 +95,24 @@ async def rescan_command(
                 )
                 return
             effective_user_id = user_id
+        else:
+            # Auto-registrar al autor del comando si aún no existe
+            existing = await user_service.get_user_by_user_id(effective_user_id)
+            if not existing:
+                discord_username = ctx.author.name
+                unique_username = f'discord_{ctx.author.id}'
+                try:
+                    await user_service.create_user(
+                        username=unique_username,
+                        email=f'{unique_username}@discord.invalid',
+                        display_name=ctx.author.display_name,
+                        role='developer',
+                        user_id=effective_user_id,
+                    )
+                    logger.info(f'Usuario auto-registrado desde Discord: {effective_user_id} ({discord_username})')
+                except ValueError:
+                    # Ya existe por username/email (race condition), ignorar
+                    pass
 
         # 3. Adquirir lock atómico para evitar rescans simultáneos
         lock_acquired = await alert_service.acquire_rescan_lock(
