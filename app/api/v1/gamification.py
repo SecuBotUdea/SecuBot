@@ -3,7 +3,7 @@ Gamification API Router - Leaderboard, user stats, badges and available rules
 """
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -17,8 +17,8 @@ logger = get_logger(__name__)
 @router.get('/leaderboard', summary='Obtener leaderboard de SecuPoints')
 async def get_leaderboard(
     limit: int = Query(default=10, ge=1, le=100, description='Número de entradas a retornar'),
-    team_id: Optional[str] = Query(default=None, description='Filtrar por equipo'),
-    timeframe: Optional[str] = Query(
+    team_id: str | None = Query(default=None, description='Filtrar por equipo'),
+    timeframe: str | None = Query(
         default=None,
         description='Periodo de tiempo: daily | weekly | monthly (omitir para all-time)',
     ),
@@ -43,7 +43,7 @@ async def get_leaderboard(
         }
     except Exception as e:
         logger.error(f'Error getting leaderboard: {e}')
-        raise HTTPException(status_code=500, detail=f'Error al obtener leaderboard: {str(e)}')
+        raise HTTPException(status_code=500, detail=f'Error al obtener leaderboard: {str(e)}') from e
 
 
 @router.get('/users/{user_id}/balance', summary='Balance y nivel de un usuario')
@@ -66,7 +66,7 @@ async def get_user_balance(user_id: str) -> dict[str, Any]:
         logger.error(f'Error getting balance for user {user_id}: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al obtener balance del usuario: {str(e)}'
-        )
+        ) from e
 
 
 @router.get('/users/{user_id}/stats', summary='Estadísticas completas de un usuario')
@@ -86,7 +86,7 @@ async def get_user_stats(user_id: str) -> dict[str, Any]:
         logger.error(f'Error getting stats for user {user_id}: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al obtener estadísticas del usuario: {str(e)}'
-        )
+        ) from e
 
 
 @router.get('/users/{user_id}/badges', summary='Badges obtenidos por un usuario')
@@ -109,7 +109,7 @@ async def get_user_badges(
         logger.error(f'Error getting badges for user {user_id}: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al obtener badges del usuario: {str(e)}'
-        )
+        ) from e
 
 
 @router.get('/rules', summary='Reglas de gamificación activas')
@@ -128,14 +128,14 @@ async def get_available_rules() -> dict[str, Any]:
         logger.error(f'Error getting available rules: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al obtener reglas de gamificación: {str(e)}'
-        )
+        ) from e
 
 
 @router.get('/activity', summary='Actividad reciente del sistema')
 async def get_recent_activity(
     limit: int = Query(default=20, ge=1, le=100, description='Número de actividades'),
-    user_id: Optional[str] = Query(default=None, description='Filtrar por usuario'),
-    team_id: Optional[str] = Query(default=None, description='Filtrar por equipo'),
+    user_id: str | None = Query(default=None, description='Filtrar por usuario'),
+    team_id: str | None = Query(default=None, description='Filtrar por equipo'),
 ) -> dict[str, Any]:
     """
     Retorna actividad reciente: transacciones de puntos y badges otorgados.
@@ -156,7 +156,7 @@ async def get_recent_activity(
         logger.error(f'Error getting recent activity: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al obtener actividad reciente: {str(e)}'
-        )
+        ) from e
 
 
 @router.post(
@@ -182,4 +182,4 @@ async def evaluate_user_badges(user_id: str) -> dict[str, Any]:
         logger.error(f'Error evaluating badges for user {user_id}: {e}')
         raise HTTPException(
             status_code=500, detail=f'Error al evaluar badges del usuario: {str(e)}'
-        )
+        ) from e
