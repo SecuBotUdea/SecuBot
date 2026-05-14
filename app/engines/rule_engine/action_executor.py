@@ -9,24 +9,24 @@ Responsabilidades:
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
 
 class ActionExecutor:
     """
     Ejecuta acciones definidas en reglas aplicables
-    
+
     Usage:
         executor = ActionExecutor(db_session, point_calculator)
-        
+
         result = await executor.execute_action(
             rule=rule,
             context=context,
             calculated_points=150
         )
     """
-    
+
     def __init__(self, db_client, point_calculator):
         """
         Args:
@@ -35,21 +35,21 @@ class ActionExecutor:
         """
         self.db = db_client
         self.point_calculator = point_calculator
-    
+
     async def execute_point_award(
         self,
         rule_id: str,
         user_id: str,
-        team_id: Optional[str],
+        team_id: str | None,
         points: int,
         reason: str,
-        evidence: List[str],
-        context: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        evidence: list[str],
+        context: dict[str, Any],
+        metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Ejecuta otorgamiento de puntos
-        
+
         Args:
             rule_id: ID de la regla que se dispara
             user_id: ID del usuario receptor
@@ -59,7 +59,7 @@ class ActionExecutor:
             evidence: Lista de IDs de evidencia (alert_id, rescan_id, etc.)
             context: Contexto con entidades involucradas
             metadata: Metadata adicional
-        
+
         Returns:
             Dict con la transacción creada
         """
@@ -78,13 +78,13 @@ class ActionExecutor:
             "original_alert_status": metadata.get("original_alert_status") if metadata else None,
             "metadata": metadata or {}
         }
-        
+
         # Persistir en BD
         result = await self.db.point_transactions.insert_one(txn)
-        
+
         # Evento secundario: evaluar badges
         # (esto se manejará en el RuleEngine principal)
-        
+
         return {
             "txn_id": txn["txn_id"],
             "points": points,
@@ -97,22 +97,22 @@ class ActionExecutor:
             "alert_id": txn.get("alert_id"),
             "inserted": bool(result.inserted_id)  # ✅ Confirmar inserción
         }
-    
+
     async def execute_penalty(
         self,
         rule_id: str,
         user_id: str,
-        team_id: Optional[str],
+        team_id: str | None,
         points: int,
         reason: str,
         penalty_reason: str,
         original_alert_status: str,
-        evidence: List[str],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        evidence: list[str],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Ejecuta penalización (puntos negativos)
-        
+
         Args:
             rule_id: ID de la regla de penalización
             user_id: Usuario penalizado
@@ -123,7 +123,7 @@ class ActionExecutor:
             original_alert_status: Estado original de la alerta antes de penalización
             evidence: Evidencia
             context: Contexto
-        
+
         Returns:
             Dict con la transacción creada
         """
@@ -131,7 +131,7 @@ class ActionExecutor:
             "penalty_reason": penalty_reason,
             "original_alert_status": original_alert_status
         }
-        
+
         return await self.execute_point_award(
             rule_id=rule_id,
             user_id=user_id,
@@ -142,47 +142,47 @@ class ActionExecutor:
             context=context,
             metadata=metadata
         )
-    
+
     async def execute_side_effects(
         self,
-        side_effects: List[Dict[str, Any]],
-        context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        side_effects: list[dict[str, Any]],
+        context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Ejecuta efectos secundarios definidos en una regla
-        
+
         Args:
             side_effects: Lista de side effects desde la regla
             context: Contexto con entidades
-        
+
         Returns:
             Lista de resultados de cada side effect
         """
         results = []
-        
+
         for effect in side_effects:
             if "update_alert" in effect:
                 result = await self._update_alert(effect["update_alert"], context)
                 results.append({"type": "update_alert", "result": result})
-            
+
             elif "update_remediation" in effect:
                 result = await self._update_remediation(effect["update_remediation"], context)
                 results.append({"type": "update_remediation", "result": result})
-            
+
             elif "create_notification" in effect:
                 result = await self._create_notification(effect["create_notification"], context)
                 results.append({"type": "create_notification", "result": result})
-        
+
         return results
-    
+
     async def _update_alert(
         self,
-        update_config: Dict[str, Any],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        update_config: dict[str, Any],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Actualiza estado de una alerta
-        
+
         Args:
             update_config: Configuración del update
                 {
@@ -195,12 +195,12 @@ class ActionExecutor:
         alert_id = self._resolve_value(update_config.get("alert_id"), context)
         new_status = update_config.get("new_status")
         notes = update_config.get("notes", "")
-        
+
         update_data = {
             "status": new_status,
             "updated_at": datetime.utcnow()
         }
-        
+
         # Agregar nota a lifecycle_history si existe
         if notes:
             lifecycle_entry = {
@@ -209,7 +209,7 @@ class ActionExecutor:
                 "notes": notes
             }
             update_data["$push"] = {"lifecycle_history": lifecycle_entry}
-        
+
         result = await self.db.alerts.update_one(
             {"alert_id": alert_id},
             {"$set": update_data} if "$push" not in update_data else {
@@ -217,22 +217,22 @@ class ActionExecutor:
                 **{"$push": update_data["$push"]}
             }
         )
-        
+
         return {
             "alert_id": alert_id,
             "matched": result.matched_count,
             "modified": result.modified_count
         }
-    
+
     async def _update_remediation(
         self,
-        update_config: Dict[str, Any],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        update_config: dict[str, Any],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Actualiza estado de una remediación"""
         remediation_id = self._resolve_value(update_config.get("remediation_id"), context)
         new_status = update_config.get("new_status")
-        
+
         result = await self.db.remediations.update_one(
             {"remediation_id": remediation_id},
             {
@@ -242,25 +242,25 @@ class ActionExecutor:
                 }
             }
         )
-        
+
         return {
             "remediation_id": remediation_id,
             "matched": result.matched_count,
             "modified": result.modified_count
         }
-    
+
     async def _create_notification(
         self,
-        notification_config: Dict[str, Any],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        notification_config: dict[str, Any],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Crea una notificación (para ser procesada por NotificationService)
         """
         target = self._resolve_value(notification_config.get("target"), context)
         message = notification_config.get("message", "")
         priority = notification_config.get("priority", "normal")
-        
+
         notification = {
             "notification_id": str(uuid4()),
             "target_user_id": target,
@@ -269,65 +269,65 @@ class ActionExecutor:
             "status": "pending",
             "created_at": datetime.utcnow()
         }
-        
+
         result = await self.db.notifications.insert_one(notification)
-        
+
         return {
             "notification_id": notification["notification_id"],
             "inserted": bool(result.inserted_id)
         }
-    
+
     def _resolve_evidence (
         self,
-        evidence_list: List[str],
-        context: Dict[str, Any]
-    ) -> List[str]:
+        evidence_list: list[str],
+        context: dict[str, Any]
+    ) -> list[str]:
         """
         Resuelve referencias de evidencia desde el contexto
-        
+
         Args:
             evidence_list: Lista de referencias (ej: ["Alert.alert_id", "RescanResult.rescan_id"])
             context: Contexto con entidades
-        
+
         Returns:
             Lista de valores resueltos
         """
         resolved = []
-        
+
         for evidence_ref in evidence_list:
             value = self._resolve_value(evidence_ref, context)
             if value is not None:
                 resolved.append(str(value))
-        
+
         return resolved
-    
-    def _resolve_value(self, expr: Any, context: Dict[str, Any]) -> Any:
+
+    def _resolve_value(self, expr: Any, context: dict[str, Any]) -> Any:
         """
         Resuelve un valor desde el contexto
         Similar a ConditionEvaluator._resolve_reference
         """
         if not expr or not isinstance(expr, str):
             return expr
-        
+
         # Si no tiene punto, es un literal
         if "." not in expr:
             return expr
-        
+
         parts = expr.split(".")
         entity_name = parts[0]
-        
+
         if entity_name not in context:
             return None
-        
+
         obj = context[entity_name]
-        
+
         for part in parts[1:]:
             if obj is None:
                 return None
-            
+
             if isinstance(obj, dict):
                 obj = obj.get(part)
             else:
                 obj = getattr(obj, part, None)
-        
+
         return obj

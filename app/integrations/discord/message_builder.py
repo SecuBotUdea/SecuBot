@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Discord Message Builder - Construye embeds de Discord para notificaciones de seguridad
 """

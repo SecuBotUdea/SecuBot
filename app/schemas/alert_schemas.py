@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Alert Schemas - API contracts for Alert endpoints
 """
 from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 

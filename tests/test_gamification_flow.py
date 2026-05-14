@@ -14,11 +14,10 @@ MongoDB connection is required.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Test-data factories
@@ -31,7 +30,7 @@ def make_alert(
     quality: str = "high",
     status: str = "pending_verification",
     reopen_count: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return {
         "alert_id": alert_id,
         "signature": f"sig-{alert_id}",
@@ -55,7 +54,7 @@ def make_remediation(
     team_id: str = "team-x",
     action_ts: datetime | None = None,
     status: str = "pending",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return {
         "remediation_id": remediation_id,
         "alert_id": alert_id,
@@ -69,7 +68,7 @@ def make_remediation(
     }
 
 
-def make_rescan_result(still_exists: bool = False) -> Dict[str, Any]:
+def make_rescan_result(still_exists: bool = False) -> dict[str, Any]:
     """Dict representation used as RescanResult context value."""
     return {
         "alert_id": "ALT-001",
@@ -245,8 +244,8 @@ class TestGamificationService:
     # active during __init__, then keep the object references after exit.
     # ------------------------------------------------------------------
     def _build_service(self):
-        from app.services.gamification_service import GamificationService
         from app.engines.rule_engine.loader.singleton import get_rule_loader as _real_loader
+        from app.services.gamification_service import GamificationService
 
         mock_db = _make_mock_db()
         real_loader = _real_loader()
@@ -481,17 +480,17 @@ class TestBadgeRuleModel:
             BadgeRule,
         )
 
-        defaults = dict(
-            badge_id="BDG-TEST",
-            name="Test Badge",
-            description="desc",
-            category="test",
-            icon_url="/test.svg",
-            active=True,
-            version=1,
-            criteria=BadgeCriteria(type="individual", conditions=[]),
-            award_trigger=BadgeAwardTrigger(event="rescan_completed"),
-        )
+        defaults = {
+            "badge_id": "BDG-TEST",
+            "name": "Test Badge",
+            "description": "desc",
+            "category": "test",
+            "icon_url": "/test.svg",
+            "active": True,
+            "version": 1,
+            "criteria": BadgeCriteria(type="individual", conditions=[]),
+            "award_trigger": BadgeAwardTrigger(event="rescan_completed"),
+        }
         defaults.update(kwargs)
         return BadgeRule(**defaults)
 

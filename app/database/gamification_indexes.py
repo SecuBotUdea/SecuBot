@@ -1,5 +1,5 @@
-from app.database.mongodb import get_database
 import logging
+
 logger = logging.getLogger(__name__)
 
 def _ensure_indexes(point_txns, awards):

@@ -9,8 +9,8 @@ Responsable de:
 - Manejar filtros por equipo/timeframe
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from app.database.mongodb import get_database
 from app.engines.rule_engine import RuleEngine, get_rule_loader
@@ -30,7 +30,7 @@ class GamificationService:
         self.point_txns = self.db.point_transactions
         self.awards = self.db.awards
         self.users = self.db.users
-        
+
         # RuleEngine maneja toda la lógica
         self.rule_engine = RuleEngine(self.db)
         self.rule_loader = get_rule_loader()
@@ -39,15 +39,15 @@ class GamificationService:
     # WRAPPERS DIRECTOS DEL RULEENGINE
     # ========================================================================
 
-    async def get_user_balance(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_balance(self, user_id: str) -> dict[str, Any]:
         """Wrapper de RuleEngine.calculate_user_balance()"""
         return await self.rule_engine.calculate_user_balance(user_id)
 
-    async def process_event(self, event_name: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_event(self, event_name: str, context: dict[str, Any]) -> dict[str, Any]:
         """Wrapper de RuleEngine.process_event()"""
         return await self.rule_engine.process_event(event_name, context)
 
-    async def evaluate_user_badges(self, user_id: str) -> List[Dict[str, Any]]:
+    async def evaluate_user_badges(self, user_id: str) -> list[dict[str, Any]]:
         """Wrapper de BadgeEvaluator.evaluate_user_badges()"""
         return await self.rule_engine.badge_evaluator.evaluate_user_badges(user_id)
 
@@ -58,9 +58,9 @@ class GamificationService:
     async def get_leaderboard(
         self,
         limit: int = 10,
-        team_id: Optional[str] = None,
-        timeframe: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        team_id: str | None = None,
+        timeframe: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Leaderboard con filtros de equipo/tiempo.
         Agrega datos de usuarios y niveles.
@@ -75,7 +75,7 @@ class GamificationService:
                 time_filter = {"timestamp": {"$gte": now - timedelta(weeks=1)}}
             elif timeframe == "monthly":
                 time_filter = {"timestamp": {"$gte": now - timedelta(days=30)}}
-        
+
         # Agregación
         pipeline = [
             {"$match": time_filter},
@@ -87,22 +87,22 @@ class GamificationService:
             {"$sort": {"total_points": -1}},
             {"$limit": limit}
         ]
-        
+
         results = await self.point_txns.aggregate(pipeline).to_list(length=None)
-        
+
         # Enriquecer con datos de usuario y nivel
         leaderboard = []
         for i, entry in enumerate(results):
             user_id = entry["_id"]
             user = await self.users.find_one({"_id": user_id})
-            
+
             # Filtrar por equipo
             if team_id and (not user or user.get("team_id") != team_id):
                 continue
-            
+
             # Obtener nivel (via RuleEngine)
             balance = await self.get_user_balance(user_id)
-            
+
             leaderboard.append({
                 "rank": i + 1,
                 "user_id": user_id,
@@ -114,25 +114,25 @@ class GamificationService:
                 "level_name": balance["level_name"],
                 "transaction_count": entry["transaction_count"]
             })
-        
+
         return leaderboard
 
-    async def get_user_badges(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_user_badges(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """Query simple de badges de un usuario"""
         badges = await self.awards.find({"user_id": user_id}).sort("awarded_at", -1).limit(limit).to_list(length=limit)
-        
+
         for badge in badges:
             badge["_id"] = str(badge["_id"])
-        
+
         return badges
 
-    async def get_badge_details(self, badge_id: str) -> Optional[Dict[str, Any]]:
+    async def get_badge_details(self, badge_id: str) -> dict[str, Any] | None:
         """Obtener definición de badge desde rules.yaml"""
         try:
             badge_rule = self.rule_loader.get_badge_by_id(badge_id) # type: ignore
             if not badge_rule:
                 return None
-            
+
             return {
                 "badge_id": badge_rule.badge_id,
                 "name": badge_rule.name,
@@ -144,14 +144,14 @@ class GamificationService:
             logger.error(f"Error obteniendo badge {badge_id}: {e}")
             return None
 
-    async def get_user_stats(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_stats(self, user_id: str) -> dict[str, Any]:
         """
         Estadísticas completas de un usuario.
         Combina balance (RuleEngine) + badges + transacciones recientes.
         """
         # Balance (via RuleEngine)
         balance = await self.get_user_balance(user_id)
-        
+
         # Badges
         badges = await self.get_user_badges(user_id)
         badge_tiers = {"bronze": 0, "silver": 0, "gold": 0, "platinum": 0}
@@ -159,12 +159,12 @@ class GamificationService:
             tier = badge.get("tier", "bronze")
             if tier in badge_tiers:
                 badge_tiers[tier] += 1
-        
+
         # Transacciones recientes
         recent_txns = await self.point_txns.find({"user_id": user_id}).sort("timestamp", -1).limit(5).to_list(length=5)
         for txn in recent_txns:
             txn["_id"] = str(txn["_id"])
-        
+
         # Estadísticas de puntos
         pipeline = [
             {"$match": {"user_id": user_id}},
@@ -180,7 +180,7 @@ class GamificationService:
             "total_earned": 0, "total_lost": 0, "max_single_gain": 0
         }
         stats.pop("_id", None)
-        
+
         return {
             "user_id": user_id,
             "balance": balance,
@@ -196,13 +196,13 @@ class GamificationService:
     async def get_recent_activity(
         self,
         limit: int = 20,
-        user_id: Optional[str] = None,
-        team_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        user_id: str | None = None,
+        team_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Actividad reciente: transacciones de puntos + badges otorgados"""
         activities = []
         query = {"user_id": user_id} if user_id else {}
-        
+
         # Transacciones
         txns = await self.point_txns.find(query).sort("timestamp", -1).limit(limit // 2).to_list(length=limit // 2)
         for txn in txns:
@@ -214,7 +214,7 @@ class GamificationService:
                 "reason": txn.get("reason", ""),
                 "rule_id": txn.get("rule_id")
             })
-        
+
         # Badges
         badges = await self.awards.find(query).sort("awarded_at", -1).limit(limit // 2).to_list(length=limit // 2)
         for badge in badges:
@@ -225,10 +225,10 @@ class GamificationService:
                 "badge_id": badge["badge_id"],
                 "badge_name": badge.get("badge_name", badge["badge_id"])
             })
-        
+
         # Ordenar y filtrar por equipo
         activities.sort(key=lambda x: x["timestamp"], reverse=True)
-        
+
         if team_id:
             filtered = []
             for activity in activities[:limit]:
@@ -236,10 +236,10 @@ class GamificationService:
                 if user and user.get("team_id") == team_id:
                     filtered.append(activity)
             return filtered
-        
+
         return activities[:limit]
 
-    async def get_available_rules(self) -> Dict[str, Any]:
+    async def get_available_rules(self) -> dict[str, Any]:
         """Reglas disponibles desde rules.yaml"""
         return {
             "point_rules": [

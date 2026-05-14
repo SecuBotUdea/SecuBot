@@ -5,7 +5,8 @@ Responsable de CRUD básico de usuarios sin autenticación (sin password).
 """
 
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from bson import ObjectId
 
 from app.database.mongodb import get_database
@@ -14,7 +15,7 @@ from app.database.mongodb import get_database
 class UserService:
     """
     Servicio principal para gestión de usuarios.
-    
+
     Responsable de:
     - CRUD básico de usuarios
     - Validación de unicidad (username, email)
@@ -30,15 +31,15 @@ class UserService:
         self,
         username: str,
         email: str,
-        display_name: Optional[str] = None,
+        display_name: str | None = None,
         role: str = "developer",
-        team_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        team_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Crear un nuevo usuario.
-        
+
         Args:
             username: Nombre de usuario único
             email: Email único
@@ -46,26 +47,26 @@ class UserService:
             role: Rol del usuario (developer, team_lead, admin, super_admin)
             team_id: ID del equipo al que pertenece (opcional)
             metadata: Metadata adicional (opcional)
-            
+
         Returns:
             Dict con el usuario creado
-            
+
         Raises:
             ValueError: Si username o email ya existen
         """
         # Validar unicidad de username
         if await self.collection.count_documents({"username": username}) > 0:
             raise ValueError(f"Username '{username}' ya existe")
-        
+
         # Validar unicidad de email
         if await self.collection.count_documents({"email": email}) > 0:
             raise ValueError(f"Email '{email}' ya existe")
-        
+
         # Validar rol
         valid_roles = ["developer", "team_lead", "admin", "super_admin"]
         if role not in valid_roles:
             raise ValueError(f"Rol inválido. Valores permitidos: {valid_roles}")
-        
+
         now = datetime.now(timezone.utc)
 
         # Construir documento del usuario
@@ -82,20 +83,20 @@ class UserService:
             "created_at": now,
             "updated_at": now
         }
-        
+
         # Insertar en MongoDB
         result = await self.collection.insert_one(user_doc)
         user_doc["_id"] = str(result.inserted_id)
-        
+
         return user_doc
 
-    async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get_user(self, user_id: str) -> dict[str, Any] | None:
         """
         Obtener un usuario por su _id de MongoDB.
-        
+
         Args:
             user_id: ID del usuario (ObjectId como string)
-            
+
         Returns:
             Dict con el usuario o None si no existe
         """
@@ -107,7 +108,7 @@ class UserService:
         except Exception:
             return None
 
-    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_username(self, username: str) -> dict[str, Any] | None:
         """
         Obtener un usuario por su username.
         """
@@ -116,7 +117,7 @@ class UserService:
             user["_id"] = str(user["_id"])
         return user
 
-    async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_email(self, email: str) -> dict[str, Any] | None:
         """
         Obtener un usuario por su email.
         """
@@ -125,7 +126,7 @@ class UserService:
             user["_id"] = str(user["_id"])
         return user
 
-    async def get_user_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_user_id(self, user_id: str) -> dict[str, Any] | None:
         """
         Obtener un usuario por su user_id personalizado (campo gamificación).
         """
@@ -138,59 +139,59 @@ class UserService:
         self,
         user_id: str,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Actualizar campos de un usuario.
-        
+
         Args:
             user_id: ID del usuario
             **kwargs: Campos a actualizar (display_name, role, team_id, metadata, etc.)
-            
+
         Returns:
             Usuario actualizado
-            
+
         Raises:
             ValueError: Si el usuario no existe
         """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"Usuario {user_id} no encontrado")
-        
+
         # Preparar actualización
         update_data = {}
-        
+
         # Campos permitidos para actualizar
         allowed_fields = [
             "display_name", "role", "team_id", "metadata",
             "is_active", "email_verified"
         ]
-        
+
         for field in allowed_fields:
             if field in kwargs:
                 update_data[field] = kwargs[field]
-        
+
         # Siempre actualizar timestamp
         update_data["updated_at"] = datetime.now(timezone.utc)
-        
+
         # Ejecutar actualización
         if update_data:
             await self.collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": update_data}
             )
-        
+
         updated_user = await self.get_user(user_id)
         assert updated_user is not None
-        
+
         return updated_user
 
     async def delete_user(self, user_id: str) -> bool:
         """
         Eliminar un usuario (soft delete marcando is_active=False).
-        
+
         Args:
             user_id: ID del usuario
-            
+
         Returns:
             True si se eliminó exitosamente
         """
@@ -203,7 +204,7 @@ class UserService:
                 }
             }
         )
-        
+
         return result.modified_count > 0
 
     async def hard_delete_user(self, user_id: str) -> bool:
@@ -216,92 +217,92 @@ class UserService:
 
     async def list_users(
         self,
-        role: Optional[str] = None,
-        team_id: Optional[str] = None,
-        is_active: Optional[bool] = None,
+        role: str | None = None,
+        team_id: str | None = None,
+        is_active: bool | None = None,
         limit: int = 50,
         skip: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Listar usuarios con filtros opcionales.
-        
+
         Returns:
             Lista de usuarios ordenados por created_at descendente
         """
         query = {}
-        
+
         if role:
             query["role"] = role
         if team_id:
             query["team_id"] = team_id
         if is_active is not None:
             query["is_active"] = is_active
-        
+
         cursor = self.collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
-        
+
         users = []
         async for user in cursor:
             user["_id"] = str(user["_id"])
             users.append(user)
-        
+
         return users
 
-    async def get_active_users(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_active_users(self, limit: int = 100) -> list[dict[str, Any]]:
         """
         Obtener usuarios activos.
         Útil para leaderboards y asignación de alertas.
         """
         return await self.list_users(is_active=True, limit=limit)
 
-    async def get_users_by_team(self, team_id: str) -> List[Dict[str, Any]]:
+    async def get_users_by_team(self, team_id: str) -> list[dict[str, Any]]:
         """
         Obtener todos los usuarios de un equipo específico.
         """
         return await self.list_users(team_id=team_id, is_active=True, limit=1000)
 
-    async def get_users_by_role(self, role: str) -> List[Dict[str, Any]]:
+    async def get_users_by_role(self, role: str) -> list[dict[str, Any]]:
         """
         Obtener usuarios por rol.
         """
         return await self.list_users(role=role, limit=1000)
 
-    async def verify_email(self, user_id: str) -> Dict[str, Any]:
+    async def verify_email(self, user_id: str) -> dict[str, Any]:
         """
         Marcar el email de un usuario como verificado.
         """
         return await self.update_user(user_id, email_verified=True)
 
-    async def assign_to_team(self, user_id: str, team_id: str) -> Dict[str, Any]:
+    async def assign_to_team(self, user_id: str, team_id: str) -> dict[str, Any]:
         """
         Asignar un usuario a un equipo.
         """
         return await self.update_user(user_id, team_id=team_id)
 
-    async def change_role(self, user_id: str, new_role: str) -> Dict[str, Any]:
+    async def change_role(self, user_id: str, new_role: str) -> dict[str, Any]:
         """
         Cambiar el rol de un usuario.
         """
         valid_roles = ["developer", "team_lead", "admin", "super_admin"]
         if new_role not in valid_roles:
             raise ValueError(f"Rol inválido. Valores permitidos: {valid_roles}")
-        
+
         return await self.update_user(user_id, role=new_role)
 
-    async def update_metadata(self, user_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_metadata(self, user_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Actualizar metadata del usuario (mergea con metadata existente).
         """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"Usuario {user_id} no encontrado")
-        
+
         # Mergear metadata
         current_metadata = user.get("metadata", {})
         current_metadata.update(metadata)
-        
+
         return await self.update_user(user_id, metadata=current_metadata)
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """
         Obtener estadísticas generales de usuarios.
         """
@@ -334,15 +335,15 @@ class UserService:
                 }
             }
         ]
-        
+
         cursor = self.collection.aggregate(pipeline)
         result = await cursor.to_list(length=None)
-        
+
         if result:
             stats = result[0]
             stats.pop("_id", None)
             return stats
-        
+
         return {
             "total": 0,
             "active": 0,
@@ -354,7 +355,7 @@ class UserService:
             "super_admins": 0
         }
 
-    async def user_exists(self, username: Optional[str] = None, email: Optional[str] = None) -> bool:
+    async def user_exists(self, username: str | None = None, email: str | None = None) -> bool:
         """
         Verificar si existe un usuario por username o email.
         Útil para validaciones antes de crear.
@@ -362,20 +363,20 @@ class UserService:
         if username:
             if await self.collection.count_documents({"username": username}) > 0:
                 return True
-        
+
         if email:
             if await self.collection.count_documents({"email": email}) > 0:
                 return True
-        
+
         return False
 
-    async def search_users(self, search_term: str, limit: int = 20) -> List[Dict[str, Any]]:
+    async def search_users(self, search_term: str, limit: int = 20) -> list[dict[str, Any]]:
         """
         Buscar usuarios por username, email o display_name.
         Búsqueda case-insensitive con regex.
         """
         regex_pattern = {"$regex": search_term, "$options": "i"}
-        
+
         query = {
             "$or": [
                 {"username": regex_pattern},
@@ -384,17 +385,17 @@ class UserService:
             ],
             "is_active": True
         }
-        
+
         cursor = self.collection.find(query).limit(limit)
-        
+
         users = []
         async for user in cursor:
             user["_id"] = str(user["_id"])
             users.append(user)
-        
+
         return users
-    
-    async def count_users(self, filters: Dict[str, Any]) -> int:
+
+    async def count_users(self, filters: dict[str, Any]) -> int:
         """Contar usuarios con filtros opcionales"""
         return await self.collection.count_documents(filters or {})
 

@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from app.models.alert import Alert
 from app.database.mongodb import get_database
+from app.models.alert import Alert
 from app.services.notification_service import notification_service
 from app.utils.logger import get_logger
 
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class AlertService:
     """
     Servicio principal para gestión de alertas de seguridad.
-    
+
     Responsable de:
     - Recibir alertas ya normalizadas vía webhook
     - Validar contra el modelo Pydantic
@@ -27,16 +27,16 @@ class AlertService:
         self.collection = self.db.alerts
         self.notification_service = notification_service
 
-    async def create_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_alert(self, alert_data: dict[str, Any]) -> dict[str, Any]:
         """
         Crear una nueva alerta en el sistema.
-        
+
         Args:
             alert_data: Payload ya normalizado desde el normalizador externo
-            
+
         Returns:
             Dict con la alerta creada y metadata
-            
+
         Raises:
             ValueError: Si los datos no cumplen el contrato Pydantic
         """
@@ -44,11 +44,11 @@ class AlertService:
         try:
             alert = Alert(**alert_data)
         except Exception as e:
-            raise ValueError(f"Datos inválidos para Alert: {str(e)}")
-        
+            raise ValueError(f"Datos inválidos para Alert: {str(e)}") from e
+
         # 2. Convertir a dict para MongoDB
         alert_dict = alert.model_dump()
-        
+
         # 3. Verificar si ya existe (por alert_id)
         existing = await self.collection.find_one({"alert_id": alert_dict["alert_id"]})
         if existing:
@@ -57,7 +57,7 @@ class AlertService:
                 "alert_id": alert_dict["alert_id"],
                 "message": f"Alerta {alert_dict['alert_id']} ya existe"
             }
-        
+
         # 4. Insertar en MongoDB
         result = await self.collection.insert_one(alert_dict)
         alert_dict["_id"] = str(result.inserted_id)
@@ -72,7 +72,7 @@ class AlertService:
         except Exception as e:
             # No fallar la creación de alerta si falla la notificación
             logger.error(f"Error enviando notificación para {alert.alert_id}: {e}")
-        
+
         return {
             "status": "created",
             "alert_id": alert_dict["alert_id"],
@@ -80,13 +80,13 @@ class AlertService:
             "message": f"Alerta {alert_dict['alert_id']} creada exitosamente"
         }
 
-    async def get_alert(self, alert_id: str) -> Optional[Dict[str, Any]]:
+    async def get_alert(self, alert_id: str) -> dict[str, Any] | None:
         """
         Obtener una alerta por su alert_id (PK).
-        
+
         Args:
             alert_id: Identificador único de la alerta
-            
+
         Returns:
             Dict con la alerta o None si no existe
         """
@@ -95,7 +95,7 @@ class AlertService:
             alert["_id"] = str(alert["_id"])
         return alert
 
-    async def get_alert_by_signature(self, signature: str) -> Optional[Dict[str, Any]]:
+    async def get_alert_by_signature(self, signature: str) -> dict[str, Any] | None:
         """
         Obtener una alerta por su firma técnica.
         Útil para detectar recurrencias del mismo hallazgo.
@@ -107,22 +107,22 @@ class AlertService:
 
     async def list_alerts(
         self,
-        status: Optional[str] = None,
-        severity: Optional[str] = None,
-        source_id: Optional[str] = None,
-        quality: Optional[str] = None,
-        component: Optional[str] = None,
+        status: str | None = None,
+        severity: str | None = None,
+        source_id: str | None = None,
+        quality: str | None = None,
+        component: str | None = None,
         limit: int = 50,
         skip: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Listar alertas con filtros opcionales.
-        
+
         Returns:
             Lista de alertas ordenadas por first_seen descendente
         """
         query = {}
-        
+
         if status:
             query["status"] = status
         if severity:
@@ -133,40 +133,40 @@ class AlertService:
             query["quality"] = quality
         if component:
             query["component"] = component
-        
+
         cursor = self.collection.find(query).sort("first_seen", -1).skip(skip).limit(limit)
-        
+
         alerts = []
         async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
-        
+
         return alerts
 
     async def update_status(
         self,
         alert_id: str,
         new_status: str,
-        event_metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        event_metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Actualizar el estado de una alerta y registrar en lifecycle_history.
-        
+
         Args:
             alert_id: ID de la alerta
             new_status: Nuevo estado (open, closed, reopened, etc.)
             event_metadata: Metadata adicional del evento
-            
+
         Returns:
             Alerta actualizada
         """
         alert = await self.get_alert(alert_id)
-        
+
         if not alert:
             raise ValueError(f"Alerta {alert_id} no encontrada")
-        
+
         now = datetime.now(timezone.utc)
-        
+
         # Crear evento del lifecycle
         lifecycle_event = {
             "timestamp": now,
@@ -174,19 +174,19 @@ class AlertService:
             "new_status": new_status,
             "metadata": event_metadata or {}
         }
-        
+
         update_data = {
             "status": new_status,
             "last_seen": now,
             "updated_at": now,
             "version": alert.get("version", 1) + 1
         }
-        
+
         # Tracking especial para reaperturas
         if new_status == "reopened":
             update_data["reopen_count"] = alert.get("reopen_count", 0) + 1
             update_data["last_reopened_at"] = now
-        
+
         # Actualizar en MongoDB
         await self.collection.update_one(
             {"alert_id": alert_id},
@@ -195,11 +195,11 @@ class AlertService:
                 "$push": {"lifecycle_history": lifecycle_event}
             }
         )
-        
+
         # Obtener alerta actualizada
         updated_alert = await self.get_alert(alert_id)
         assert updated_alert is not None
-        
+
         # 🆕 ENVIAR NOTIFICACIÓN SI ES REAPERTURA
         if new_status == "reopened":
             try:
@@ -208,10 +208,10 @@ class AlertService:
                 logger.info(f"Notificación de reapertura enviada para {alert_id}")
             except Exception as e:
                 logger.error(f"Error notificando reapertura de {alert_id}: {e}")
-        
+
         return updated_alert
 
-    async def reopen_alert(self, alert_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
+    async def reopen_alert(self, alert_id: str, reason: str | None = None) -> dict[str, Any]:
         """
         Reabrir una alerta cerrada.
         Incrementa reopen_count y registra en lifecycle_history.
@@ -222,7 +222,7 @@ class AlertService:
             event_metadata={"reason": reason or "Vulnerability detected again"}
         )
 
-    async def close_alert(self, alert_id: str, closed_by: Optional[str] = None) -> Dict[str, Any]:
+    async def close_alert(self, alert_id: str, closed_by: str | None = None) -> dict[str, Any]:
         """
         Cerrar una alerta.
         """
@@ -232,13 +232,13 @@ class AlertService:
             event_metadata={"closed_by": closed_by}
         )
 
-    async def update_last_seen(self, alert_id: str) -> Dict[str, Any]:
+    async def update_last_seen(self, alert_id: str) -> dict[str, Any]:
         """
         Actualizar el timestamp last_seen cuando la alerta se detecta nuevamente.
         NO cambia el status, solo actualiza la fecha.
         """
         now = datetime.now(timezone.utc)
-        
+
         await self.collection.update_one(
             {"alert_id": alert_id},
             {
@@ -248,41 +248,41 @@ class AlertService:
                 }
             }
         )
-        
+
         updated_alert = await self.get_alert(alert_id)
         assert updated_alert is not None
-        
+
         return updated_alert
 
-    async def get_alerts_by_component(self, component: str) -> List[Dict[str, Any]]:
+    async def get_alerts_by_component(self, component: str) -> list[dict[str, Any]]:
         """
         Obtener todas las alertas de un componente específico.
         Útil para análisis de vulnerabilidades por módulo.
         """
         return await self.list_alerts(component=component, limit=1000)
 
-    async def get_open_alerts(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_open_alerts(self, limit: int = 100) -> list[dict[str, Any]]:
         """
         Obtener alertas abiertas (status: open o reopened).
         """
         query = {"status": {"$in": ["open", "reopened"]}}
         cursor = self.collection.find(query).sort("severity", 1).limit(limit)
-        
+
         alerts = []
         async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
-        
+
         return alerts
 
-    async def get_high_quality_alerts(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_high_quality_alerts(self, limit: int = 50) -> list[dict[str, Any]]:
         """
         Obtener alertas de alta calidad.
         Útil para priorización de remediación.
         """
         return await self.list_alerts(quality="high", limit=limit)
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """
         Obtener estadísticas generales de alertas.
         """
@@ -325,15 +325,15 @@ class AlertService:
                 }
             }
         ]
-        
+
         cursor = self.collection.aggregate(pipeline)
         result = await cursor.to_list(length=None)
-        
+
         if result:
             stats = result[0]
             stats.pop("_id", None)
             return stats
-        
+
         return {
             "total": 0,
             "open": 0,
@@ -349,19 +349,19 @@ class AlertService:
             "total_reopens": 0
         }
 
-    async def get_alerts_with_multiple_reopens(self, min_reopens: int = 2) -> List[Dict[str, Any]]:
+    async def get_alerts_with_multiple_reopens(self, min_reopens: int = 2) -> list[dict[str, Any]]:
         """
         Obtener alertas que han sido reabiertas múltiples veces.
         Útil para identificar vulnerabilidades recurrentes o problemas de calidad.
         """
         query = {"reopen_count": {"$gte": min_reopens}}
         cursor = self.collection.find(query).sort("reopen_count", -1).limit(50)
-        
+
         alerts = []
         async for alert in cursor:
             alert["_id"] = str(alert["_id"])
             alerts.append(alert)
-        
+
         return alerts
 
     async def acquire_rescan_lock(

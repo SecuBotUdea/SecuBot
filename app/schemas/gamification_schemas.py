@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Gamification Schemas - API contracts for Points, Badges, and Awards
 """
@@ -7,7 +6,6 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ============================================
 # POINT TRANSACTION SCHEMAS

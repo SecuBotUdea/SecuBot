@@ -11,7 +11,7 @@ Flujo:
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List
+from typing import Any
 
 from app.database.mongodb import get_database
 from app.engines.rule_engine import get_rule_loader
@@ -21,7 +21,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def check_timed_out_remediations() -> List[Dict[str, Any]]:
+async def check_timed_out_remediations() -> list[dict[str, Any]]:
     """
     Detecta y penaliza remediaciones que superaron el periodo de gracia.
 
@@ -50,7 +50,7 @@ async def check_timed_out_remediations() -> List[Dict[str, Any]]:
         logger.info('TimeoutChecker: no pending remediations timed out.')
         return []
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     for remediation in pending:
         remediation_id = remediation.get('remediation_id', str(remediation.get('_id', '')))
@@ -71,7 +71,7 @@ async def check_timed_out_remediations() -> List[Dict[str, Any]]:
             remediation['_id'] = str(remediation.get('_id', ''))
 
             # Construir contexto para el RuleEngine
-            context: Dict[str, Any] = {
+            context: dict[str, Any] = {
                 'Alert': alert,
                 'Remediation': remediation,
                 'current_time': datetime.now(timezone.utc),

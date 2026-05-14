@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Common Schemas - Shared response models across all endpoints
 """

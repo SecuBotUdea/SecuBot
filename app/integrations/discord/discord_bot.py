@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Discord Bot - Recibe el comando !rescan desde Discord y ejecuta el re-escaneo
 
@@ -7,7 +6,6 @@ Comandos disponibles:
 """
 
 import asyncio
-from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -34,7 +32,7 @@ async def on_ready() -> None:
 
 
 @bot.command(name='rescan')
-async def rescan_command(ctx: commands.Context, alert_id: Optional[str] = None, user_id: Optional[str] = None) -> None:
+async def rescan_command(ctx: commands.Context, alert_id: str | None = None, user_id: str | None = None) -> None:
     """
     Ejecuta el flujo completo de re-verificación para una alerta (incluye gamificación).
 

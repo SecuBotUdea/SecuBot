@@ -6,8 +6,6 @@ Tareas programadas:
 - Cada domingo a las 00:00 UTC: actualizar snapshot de leaderboard semanal en DB
 """
 
-import asyncio
-from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -62,7 +60,7 @@ async def _run_leaderboard_snapshot() -> None:
 # Singleton del scheduler
 # ─────────────────────────────────────────────────────────────────────────────
 
-_scheduler: Optional[AsyncIOScheduler] = None
+_scheduler: AsyncIOScheduler | None = None
 
 
 def get_scheduler() -> AsyncIOScheduler:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Users API Router - CRUD operations for users and gamification stats
 """
@@ -21,7 +20,7 @@ router = APIRouter()
 
 @router.post('/', response_model=SuccessResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate, 
+    user_data: UserCreate,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
@@ -31,7 +30,7 @@ async def create_user(
     with the SecuBot system through Discord
     """
     service = get_user_service()
-    
+
     try:
         user = await service.create_user(
             username=user_data.username,
@@ -42,7 +41,7 @@ async def create_user(
             metadata=user_data.metadata,
             user_id=user_data.user_id,
         )
-        
+
         return SuccessResponse(
             message='User created successfully',
             data=UserResponse(**user),
@@ -51,7 +50,7 @@ async def create_user(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(e)
-        )
+        ) from e
 
 
 @router.get('/', response_model=PaginatedResponse[UserResponse])
@@ -69,7 +68,7 @@ async def list_users(
     - is_active: true/false
     """
     service = get_user_service()
-    
+
     # Obtener usuarios filtrados
     users = await service.list_users(
         role=filters.get("role"),
@@ -78,13 +77,13 @@ async def list_users(
         limit=pagination.limit,
         skip=pagination.skip
     )
-    
+
     # Total (usar db directamente para el count)
     total = await db.users.count_documents(filters)
-    
+
     # Convert to response models
     items = [UserResponse(**user) for user in users]
-    
+
     return PaginatedResponse(
         items=items,
         total=total,
@@ -96,26 +95,26 @@ async def list_users(
 
 @router.get('/{username}', response_model=UserResponse)
 async def get_user(
-    username: str, 
+    username: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> UserResponse:
     """Get a specific user by username"""
     service = get_user_service()
     user = await service.get_user_by_username(username)
-    
+
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     return UserResponse(**user)
 
 
 @router.patch('/{username}', response_model=SuccessResponse[UserResponse])
 async def update_user(
-    username: str, 
-    user_update: UserUpdate, 
+    username: str,
+    user_update: UserUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
@@ -124,28 +123,28 @@ async def update_user(
     Only non-None fields will be updated
     """
     service = get_user_service()
-    
+
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     # Preparar datos para actualizar
     update_data = user_update.model_dump(exclude_none=True)
     if not update_data:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='No fields to update'
         )
-    
+
     try:
         # Actualizar usando el user_id del documento existente
         user_id = str(existing["_id"])
         updated_user = await service.update_user(user_id, **update_data)
-        
+
         return SuccessResponse(
             message='User updated successfully',
             data=UserResponse(**updated_user),
@@ -154,12 +153,12 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
-        )
+        ) from e
 
 
 @router.delete('/{username}', response_model=SuccessResponse[None])
 async def delete_user(
-    username: str, 
+    username: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[None]:
     """
@@ -169,34 +168,34 @@ async def delete_user(
     Use hard_delete for permanent deletion (not exposed via API by default).
     """
     service = get_user_service()
-    
+
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     # Soft delete
     user_id = str(existing["_id"])
     success = await service.delete_user(user_id)
-    
+
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail='Failed to delete user'
         )
-    
+
     return SuccessResponse(
-        message=f'User {username} deleted successfully', 
+        message=f'User {username} deleted successfully',
         data=None
     )
 
 
 @router.get('/{username}/stats', response_model=UserStatsResponse)
 async def get_user_stats(
-    username: str, 
+    username: str,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> UserStatsResponse:
     """
@@ -210,17 +209,17 @@ async def get_user_stats(
     - Current level
     """
     service = get_user_service()
-    
+
     # Verificar que el usuario existe
     user = await service.get_user_by_username(username)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     user_id = user.get('user_id') or username
-    
+
     # Calculate total points
     total_points_pipeline = [
         {'$match': {'user_id': user_id}},
@@ -228,25 +227,21 @@ async def get_user_stats(
     ]
     points_result = await db.point_transactions.aggregate(total_points_pipeline).to_list(1)
     total_points = points_result[0]['total'] if points_result else 0
-    
+
     # Count remediations by status
     total_remediated = await db.remediations.count_documents({'user_id': user_id})
     verified_count = await db.remediations.count_documents(
         {'user_id': user_id, 'status': 'verified'}
     )
-    failed_count = await db.remediations.count_documents(
-        {'user_id': user_id, 'status': 'failed'}
-    )
-    
     # Calculate success rate
     success_rate = (verified_count / total_remediated * 100) if total_remediated > 0 else 0.0
-    
+
     # Count badges
     badges_earned = await db.awards.count_documents({'user_id': user_id})
-    
+
     # Calculate level (simple formula: 1 level per 100 points)
     level = (total_points // 100) + 1 if total_points >= 0 else 1
-    
+
     return UserStatsResponse(
         username=username,
         total_points=total_points,
@@ -266,7 +261,7 @@ async def verify_user_email(
     Verify a user's email address
     """
     service = get_user_service()
-    
+
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
@@ -274,10 +269,10 @@ async def verify_user_email(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     user_id = str(existing["_id"])
     updated_user = await service.verify_email(user_id)
-    
+
     return SuccessResponse(
         message='Email verified successfully',
         data=UserResponse(**updated_user)
@@ -292,11 +287,11 @@ async def change_user_role(
 ) -> SuccessResponse[UserResponse]:
     """
     Change a user's role
-    
+
     Valid roles: developer, team_lead, admin, super_admin
     """
     service = get_user_service()
-    
+
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
@@ -304,11 +299,11 @@ async def change_user_role(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='User not found'
         )
-    
+
     try:
         user_id = str(existing["_id"])
         updated_user = await service.change_role(user_id, new_role)
-        
+
         return SuccessResponse(
             message=f'Role changed to {new_role} successfully',
             data=UserResponse(**updated_user)
@@ -317,4 +312,4 @@ async def change_user_role(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e

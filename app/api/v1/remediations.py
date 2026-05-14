@@ -1,21 +1,17 @@
-# -*- coding: utf-8 -*-
 """
 Remediations API Router - CRUD operations for alert remediations
 """
 
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-from typing import Optional
 
 from app.api.dependencies import get_db, get_pagination, get_remediation_filters
-from app.models.remediation import Remediation
 from app.schemas.common_schemas import PaginatedResponse, PaginationParams, SuccessResponse
 from app.schemas.remediation_schemas import (
-    RemediationCreate,
     RemediationResponse,
     RemediationStatusUpdate,
     RemediationUpdate,
@@ -32,18 +28,18 @@ class CreateRemediationRequest(BaseModel):
     """Request para marcar una alerta como resuelta"""
     alert_id: str
     user_id: str
-    notes: Optional[str] = None
-    team_id: Optional[str] = None
+    notes: str | None = None
+    team_id: str | None = None
 
 
 @router.post("/", status_code=201)
 async def create_remediation(
     request: CreateRemediationRequest,
     db: AsyncIOMotorDatabase = Depends(get_db)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     El usuario marca que ya remedió una alerta.
-    
+
     Esto automáticamente:
     - Crea el registro de remediación
     - Dispara el rescan para verificar
@@ -51,27 +47,27 @@ async def create_remediation(
     """
     try:
         logger.info(f"🔵 Iniciando creación de remediación para alert_id={request.alert_id}")
-        
+
         # Obtener el servicio dentro de la función
         remediation_service = get_remediation_service()
-        
+
         result = await remediation_service.create_remediation(
             alert_id=request.alert_id,
             user_id=request.user_id,
             notes=request.notes,
             team_id=request.team_id
         )
-        
+
         logger.info(f"✅ Remediación creada exitosamente: {result.get('remediation_id')}")
         return result
-        
+
     except ValueError as e:
         logger.warning(f"⚠️ Error de validación: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-        
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     except Exception as e:
         logger.error(f"❌ Error al crear remediación: {type(e).__name__}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get('/', response_model=PaginatedResponse[RemediationResponse])
