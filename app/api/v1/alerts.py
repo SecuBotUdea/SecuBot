@@ -21,10 +21,11 @@ from app.services.alert_service import get_alert_service
 router = APIRouter()
 
 
-@router.post('/', response_model=SuccessResponse[AlertResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    '/', response_model=SuccessResponse[AlertResponse], status_code=status.HTTP_201_CREATED
+)
 async def create_alert(
-    alert_data: AlertCreate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    alert_data: AlertCreate, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
     Create a new alert
@@ -40,7 +41,7 @@ async def create_alert(
 
         # Derivar signature si no viene
         if not alert_dict.get('signature'):
-            raw = f"{alert_dict['source_id']}:{alert_dict['alert_id']}:{alert_dict['component']}"
+            raw = f'{alert_dict["source_id"]}:{alert_dict["alert_id"]}:{alert_dict["component"]}'
             alert_dict['signature'] = hashlib.sha256(raw.encode()).hexdigest()
 
         # Derivar quality si no viene
@@ -68,43 +69,37 @@ async def create_alert(
 
         # Initialize lifecycle_history if not present
         if 'lifecycle_history' not in alert_dict:
-            alert_dict['lifecycle_history'] = [{
-                "timestamp": now,
-                "old_status": None,
-                "new_status": alert_dict.get('status', 'open'),
-                "metadata": {"event": "alert_created"}
-            }]
+            alert_dict['lifecycle_history'] = [
+                {
+                    'timestamp': now,
+                    'old_status': None,
+                    'new_status': alert_dict.get('status', 'open'),
+                    'metadata': {'event': 'alert_created'},
+                }
+            ]
 
         # Create alert using service
         result = await service.create_alert(alert_dict)
 
         # Handle duplicate case
-        if result["status"] == "duplicate":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=result["message"]
-            )
+        if result['status'] == 'duplicate':
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result['message'])
 
         # Return success response
-        return SuccessResponse(
-            message=result["message"],
-            data=AlertResponse(**result["alert"])
-        )
+        return SuccessResponse(message=result['message'], data=AlertResponse(**result['alert']))
 
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except Exception as e:
         import traceback
-        print(f"Error creating alert: {str(e)}")
+
+        print(f'Error creating alert: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create alert: {str(e)}"
+            detail=f'Failed to create alert: {str(e)}',
         ) from e
 
 
@@ -123,13 +118,13 @@ async def list_alerts(
         service = get_alert_service()
 
         alerts = await service.list_alerts(
-            status=filters.get("status"),
-            severity=filters.get("severity"),
-            source_id=filters.get("source_id"),
-            component=filters.get("component"),
-            quality=filters.get("quality"),
+            status=filters.get('status'),
+            severity=filters.get('severity'),
+            source_id=filters.get('source_id'),
+            component=filters.get('component'),
+            quality=filters.get('quality'),
             limit=pagination.limit,
-            skip=pagination.skip
+            skip=pagination.skip,
         )
 
         total = await db.alerts.count_documents(filters)
@@ -144,19 +139,17 @@ async def list_alerts(
         )
     except Exception as e:
         import traceback
-        print(f"Error listing alerts: {str(e)}")
+
+        print(f'Error listing alerts: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list alerts: {str(e)}"
+            detail=f'Failed to list alerts: {str(e)}',
         ) from e
 
 
 @router.get('/{alert_id}', response_model=AlertResponse)
-async def get_alert(
-    alert_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-) -> AlertResponse:
+async def get_alert(alert_id: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> AlertResponse:
     """
     Get a single alert by ID
     """
@@ -166,8 +159,7 @@ async def get_alert(
 
         if not alert:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f'Alert {alert_id} not found'
+                status_code=status.HTTP_404_NOT_FOUND, detail=f'Alert {alert_id} not found'
             )
 
         return AlertResponse(**alert)
@@ -175,19 +167,18 @@ async def get_alert(
         raise
     except Exception as e:
         import traceback
-        print(f"Error getting alert: {str(e)}")
+
+        print(f'Error getting alert: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get alert: {str(e)}"
+            detail=f'Failed to get alert: {str(e)}',
         ) from e
 
 
 @router.patch('/{alert_id}', response_model=SuccessResponse[AlertResponse])
 async def update_alert(
-    alert_id: str,
-    alert_update: AlertUpdate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    alert_id: str, alert_update: AlertUpdate, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
     Update an alert
@@ -198,23 +189,18 @@ async def update_alert(
         existing = await db.alerts.find_one({'alert_id': alert_id})
         if not existing:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f'Alert {alert_id} not found'
+                status_code=status.HTTP_404_NOT_FOUND, detail=f'Alert {alert_id} not found'
             )
 
         update_data = alert_update.model_dump(exclude_none=True)
         if not update_data:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='No fields to update'
+                status_code=status.HTTP_400_BAD_REQUEST, detail='No fields to update'
             )
 
         update_data['updated_at'] = datetime.utcnow()
 
-        await db.alerts.update_one(
-            {'alert_id': alert_id},
-            {'$set': update_data}
-        )
+        await db.alerts.update_one({'alert_id': alert_id}, {'$set': update_data})
 
         updated_alert = await db.alerts.find_one({'alert_id': alert_id})
 
@@ -226,19 +212,18 @@ async def update_alert(
         raise
     except Exception as e:
         import traceback
-        print(f"Error updating alert: {str(e)}")
+
+        print(f'Error updating alert: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update alert: {str(e)}"
+            detail=f'Failed to update alert: {str(e)}',
         ) from e
 
 
 @router.patch('/{alert_id}/status', response_model=SuccessResponse[AlertResponse])
 async def update_alert_status(
-    alert_id: str,
-    status_update: AlertStatusUpdate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    alert_id: str, status_update: AlertStatusUpdate, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[AlertResponse]:
     """
     Update alert status with lifecycle tracking
@@ -251,7 +236,7 @@ async def update_alert_status(
         updated_alert = await service.update_status(
             alert_id=alert_id,
             new_status=status_update.status,
-            event_metadata={"reason": status_update.reason} if status_update.reason else {}
+            event_metadata={'reason': status_update.reason} if status_update.reason else {},
         )
 
         return SuccessResponse(
@@ -259,24 +244,21 @@ async def update_alert_status(
             data=AlertResponse(**updated_alert),
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except Exception as e:
         import traceback
-        print(f"Error updating alert status: {str(e)}")
+
+        print(f'Error updating alert status: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update alert status: {str(e)}"
+            detail=f'Failed to update alert status: {str(e)}',
         ) from e
 
 
 @router.delete('/{alert_id}', response_model=SuccessResponse[None])
 async def delete_alert(
-    alert_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    alert_id: str, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[None]:
     """
     Delete an alert by ID
@@ -286,21 +268,18 @@ async def delete_alert(
 
         if result.deleted_count == 0:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f'Alert {alert_id} not found'
+                status_code=status.HTTP_404_NOT_FOUND, detail=f'Alert {alert_id} not found'
             )
 
-        return SuccessResponse(
-            message=f'Alert {alert_id} deleted successfully',
-            data=None
-        )
+        return SuccessResponse(message=f'Alert {alert_id} deleted successfully', data=None)
     except HTTPException:
         raise
     except Exception as e:
         import traceback
-        print(f"Error deleting alert: {str(e)}")
+
+        print(f'Error deleting alert: {str(e)}')
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete alert: {str(e)}"
+            detail=f'Failed to delete alert: {str(e)}',
         ) from e

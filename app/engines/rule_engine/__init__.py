@@ -13,17 +13,15 @@ from app.engines.rule_engine.point_calculator import PointCalculator
 
 __all__ = [
     # Core engine
-    "RuleEngine",
-    "process_remediation_verified",
-
+    'RuleEngine',
+    'process_remediation_verified',
     # Rule loader
-    "RuleLoader",
-    "get_rule_loader",
-    "init_rule_loader",
-
+    'RuleLoader',
+    'get_rule_loader',
+    'init_rule_loader',
     # Components
-    "ConditionEvaluator",
-    "ActionExecutor",
-    "PointCalculator",
-    "BadgeEvaluator",
+    'ConditionEvaluator',
+    'ActionExecutor',
+    'PointCalculator',
+    'BadgeEvaluator',
 ]

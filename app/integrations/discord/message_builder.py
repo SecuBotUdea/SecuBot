@@ -15,10 +15,10 @@ class DiscordMessageBuilder:
     # Colores de embed por severidad (enteros en formato decimal)
     SEVERITY_COLOR = {
         'CRITICAL': 0xFF0000,  # Rojo
-        'HIGH': 0xFF6B00,      # Naranja
-        'MEDIUM': 0xFFB800,    # Amarillo
-        'LOW': 0x36A64F,       # Verde
-        'INFO': 0x808080,      # Gris
+        'HIGH': 0xFF6B00,  # Naranja
+        'MEDIUM': 0xFFB800,  # Amarillo
+        'LOW': 0x36A64F,  # Verde
+        'INFO': 0x808080,  # Gris
     }
 
     # Emojis por severidad
@@ -170,8 +170,7 @@ class DiscordMessageBuilder:
         embed: dict[str, Any] = {
             'title': '🔁 Alerta Reabierta',
             'description': (
-                f'Una vulnerabilidad previamente resuelta ha reaparecido '
-                f'en `{alert.component}`'
+                f'Una vulnerabilidad previamente resuelta ha reaparecido en `{alert.component}`'
             ),
             'color': 0xFFA500,
             'fields': [

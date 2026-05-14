@@ -11,6 +11,7 @@ from config.settings import settings
 # Carga el archivo .env desde la ubicación actual
 load_dotenv()
 
+
 def get_database() -> AsyncIOMotorDatabase:
     """
     Dependency para FastAPI
@@ -22,14 +23,14 @@ def get_database() -> AsyncIOMotorDatabase:
             return items
     """
     if db.database is None:
-        raise RuntimeError("Database not initialized. Call connect_to_mongo() first.")
+        raise RuntimeError('Database not initialized. Call connect_to_mongo() first.')
     return db.database
+
 
 """
 MongoDB Connection Manager
 Maneja la conexión async a MongoDB usando Motor
 """
-
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ async def connect_to_mongo() -> None:
     Conecta a MongoDB al iniciar la aplicación
     """
     try:
-        logger.info(f"Conectando a MongoDB: {settings.database_name}")
+        logger.info(f'Conectando a MongoDB: {settings.database_name}')
 
         # Crear cliente Motor (async)
         db.client = AsyncIOMotorClient(
@@ -60,24 +61,24 @@ async def connect_to_mongo() -> None:
             maxPoolSize=10,  # Máximo 10 conexiones
         )
 
-
         # Seleccionar base de datos
         db.database = db.client[settings.database_name]
 
         # Verificar conexión
         await db.client.admin.command('ping')
 
-        logger.info(f"✅ Conectado a MongoDB: {settings.database_name}")
+        logger.info(f'✅ Conectado a MongoDB: {settings.database_name}')
 
         # Crear índices al iniciar
         from app.database.indexes import create_indexes
+
         await create_indexes()
 
     except ConnectionFailure as e:
-        logger.error(f"❌ Error conectando a MongoDB: {e}")
+        logger.error(f'❌ Error conectando a MongoDB: {e}')
         raise
     except Exception as e:
-        logger.error(f"❌ Error inesperado: {e}")
+        logger.error(f'❌ Error inesperado: {e}')
         raise
 
 
@@ -86,12 +87,9 @@ async def close_mongo_connection() -> None:
     Cierra la conexión a MongoDB al apagar la aplicación
     """
     if db.client:
-        logger.info("Cerrando conexión a MongoDB...")
+        logger.info('Cerrando conexión a MongoDB...')
         db.client.close()
-        logger.info("✅ Conexión cerrada")
-
-
-
+        logger.info('✅ Conexión cerrada')
 
 
 async def check_connection() -> bool:

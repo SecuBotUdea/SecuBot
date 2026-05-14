@@ -53,18 +53,14 @@ class RuleEngine:
 
         # Inicializar componentes
         self.point_calculator = PointCalculator(
-            min_points=self.config.point_system.get("min_points", 0),
-            allow_negative=self.config.point_system.get("allow_negative", True)
+            min_points=self.config.point_system.get('min_points', 0),
+            allow_negative=self.config.point_system.get('allow_negative', True),
         )
 
         self.action_executor = ActionExecutor(db_client, self.point_calculator)
         self.badge_evaluator = BadgeEvaluator(db_client)
 
-    async def process_event(
-        self,
-        event_name: str,
-        context: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def process_event(self, event_name: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Procesa un evento del sistema
 
@@ -85,60 +81,59 @@ class RuleEngine:
                 }
         """
         results: dict[str, Any] = {
-            "event_name": event_name,
-            "rules_evaluated": 0,
-            "rules_triggered": 0,
-            "points_awarded": [],
-            "penalties_applied": [],
-            "badges_awarded": [],
-            "exclusions": []
+            'event_name': event_name,
+            'rules_evaluated': 0,
+            'rules_triggered': 0,
+            'points_awarded': [],
+            'penalties_applied': [],
+            'badges_awarded': [],
+            'exclusions': [],
         }
 
         # Fase 1: Verificar reglas de exclusión
         if self._should_exclude(context):
-            results["exclusions"].append({
-                "reason": "Event excluded by exclusion rules",
-                "timestamp": datetime.now(timezone.utc)
-            })
+            results['exclusions'].append(
+                {
+                    'reason': 'Event excluded by exclusion rules',
+                    'timestamp': datetime.now(timezone.utc),
+                }
+            )
             return results
 
         # Fase 2: Obtener reglas aplicables por evento
         applicable_rules = self.rule_loader.get_rules_by_event(event_name)
-        results["rules_evaluated"] = len(applicable_rules)
+        results['rules_evaluated'] = len(applicable_rules)
 
         # Fase 3: Evaluar cada regla
         for rule in applicable_rules:
             try:
                 triggered = await self._evaluate_and_execute_rule(rule, context, results)
                 if triggered:
-                    results["rules_triggered"] += 1
+                    results['rules_triggered'] += 1
             except Exception as e:
-                print(f"❌ Error evaluating rule {rule.rule_id}: {e}")
+                print(f'❌ Error evaluating rule {rule.rule_id}: {e}')
 
         # Fase 4: Evaluar badges si hubo cambios en puntos
-        if results["points_awarded"] or results["penalties_applied"]:
+        if results['points_awarded'] or results['penalties_applied']:
             user_ids: set[str] = set()
 
-            for award in results["points_awarded"]:
-                if "user_id" in award:
-                    user_ids.add(award["user_id"])
+            for award in results['points_awarded']:
+                if 'user_id' in award:
+                    user_ids.add(award['user_id'])
 
-            for penalty in results["penalties_applied"]:
-                if "user_id" in penalty:
-                    user_ids.add(penalty["user_id"])
+            for penalty in results['penalties_applied']:
+                if 'user_id' in penalty:
+                    user_ids.add(penalty['user_id'])
 
             # Evaluar badges para usuarios afectados
             for user_id in user_ids:
                 badges = await self.badge_evaluator.evaluate_user_badges(user_id)
-                results["badges_awarded"].extend(badges)
+                results['badges_awarded'].extend(badges)
 
         return results
 
     async def _evaluate_and_execute_rule(
-        self,
-        rule: Any,
-        context: dict[str, Any],
-        results: dict[str, Any]
+        self, rule: Any, context: dict[str, Any], results: dict[str, Any]
     ) -> bool:
         """
         Evalúa una regla y ejecuta su acción si aplica
@@ -150,25 +145,22 @@ class RuleEngine:
         evaluator = ConditionEvaluator(context)
 
         # Evaluar condiciones del trigger
-        conditions_met = evaluator.evaluate_all(rule.trigger.conditions, operator="AND")
+        conditions_met = evaluator.evaluate_all(rule.trigger.conditions, operator='AND')
 
         if not conditions_met:
             return False
 
         # Regla aplicable - ejecutar acción
-        if rule.type == "points":
+        if rule.type == 'points':
             await self._execute_point_rule(rule, context, results)
 
-        elif rule.type == "penalty":
+        elif rule.type == 'penalty':
             await self._execute_penalty_rule(rule, context, results)
 
         return True
 
     async def _execute_point_rule(
-        self,
-        rule: Any,
-        context: dict[str, Any],
-        results: dict[str, Any]
+        self, rule: Any, context: dict[str, Any], results: dict[str, Any]
     ) -> None:
         """Ejecuta una regla de otorgamiento de puntos"""
         action = rule.action
@@ -182,29 +174,27 @@ class RuleEngine:
         # Obtener nivel del usuario y calcular puntos con multiplicador
         user_level = await self._get_user_level(user_id)
         final_points = self.point_calculator.calculate_from_rule(
-            rule_points=action.points,
-            user_level=user_level
+            rule_points=action.points, user_level=user_level
         )
 
         # Ejecutar otorgamiento
         txn = await self.action_executor.execute_point_award(
             rule_id=rule.rule_id,
             user_id=user_id,
-            team_id=context.get("Remediation", {}).get("team_id") if "Remediation" in context else None,
+            team_id=context.get('Remediation', {}).get('team_id')
+            if 'Remediation' in context
+            else None,
             points=final_points,
             reason=action.reason,
             evidence=action.evidence,
             context=context,
-            metadata=rule.metadata if hasattr(rule, 'metadata') else {}
+            metadata=rule.metadata if hasattr(rule, 'metadata') else {},
         )
 
-        results["points_awarded"].append(txn)
+        results['points_awarded'].append(txn)
 
     async def _execute_penalty_rule(
-        self,
-        rule: Any,
-        context: dict[str, Any],
-        results: dict[str, Any]
+        self, rule: Any, context: dict[str, Any], results: dict[str, Any]
     ) -> None:
         """Ejecuta una regla de penalización"""
         action = rule.action
@@ -219,23 +209,22 @@ class RuleEngine:
         txn = await self.action_executor.execute_penalty(
             rule_id=rule.rule_id,
             user_id=user_id,
-            team_id=context.get("Remediation", {}).get("team_id") if "Remediation" in context else None,
+            team_id=context.get('Remediation', {}).get('team_id')
+            if 'Remediation' in context
+            else None,
             points=action.points,  # Ya negativo
             reason=action.reason,
-            penalty_reason=action.penalty_reason or "unspecified",
-            original_alert_status=action.original_alert_status or "unknown",
+            penalty_reason=action.penalty_reason or 'unspecified',
+            original_alert_status=action.original_alert_status or 'unknown',
             evidence=action.evidence,
-            context=context
+            context=context,
         )
 
-        results["penalties_applied"].append(txn)
+        results['penalties_applied'].append(txn)
 
         # Ejecutar side effects
         if hasattr(rule, 'side_effects') and rule.side_effects:
-            await self.action_executor.execute_side_effects(
-                rule.side_effects,
-                context
-            )
+            await self.action_executor.execute_side_effects(rule.side_effects, context)
 
     def _should_exclude(self, context: dict[str, Any]) -> bool:
         """
@@ -244,12 +233,12 @@ class RuleEngine:
         Returns:
             True si debe excluirse, False caso contrario
         """
-        exclusion_rules = self.rule_loader.get_rules_by_type("exclusion")
+        exclusion_rules = self.rule_loader.get_rules_by_type('exclusion')
 
         for rule in exclusion_rules:
             evaluator = ConditionEvaluator(context)
 
-            if evaluator.evaluate_all(rule.conditions, operator="AND"):
+            if evaluator.evaluate_all(rule.conditions, operator='AND'):
                 # Cumple condiciones de exclusión
                 return True
 
@@ -269,7 +258,7 @@ class RuleEngine:
         if not recipient_expr:
             return None
 
-        parts = recipient_expr.split(".")
+        parts = recipient_expr.split('.')
 
         if len(parts) < 2:
             return None
@@ -304,12 +293,12 @@ class RuleEngine:
         """
         # Calcular balance total de puntos
         pipeline = [
-            {"$match": {"user_id": user_id}},
-            {"$group": {"_id": None, "total": {"$sum": "$points"}}}
+            {'$match': {'user_id': user_id}},
+            {'$group': {'_id': None, 'total': {'$sum': '$points'}}},
         ]
 
         result = await self.db.point_transactions.aggregate(pipeline).to_list(length=1)
-        total_points = result[0]["total"] if result else 0
+        total_points = result[0]['total'] if result else 0
 
         # Calcular nivel
         return self.point_calculator.calculate_user_level(total_points)
@@ -326,38 +315,36 @@ class RuleEngine:
         """
         # Agregación para calcular balance
         pipeline = [
-            {"$match": {"user_id": user_id}},
-            {"$group": {
-                "_id": None,
-                "total_points": {"$sum": "$points"},
-                "positive_points": {
-                    "$sum": {"$cond": [{"$gt": ["$points", 0]}, "$points", 0]}
-                },
-                "negative_points": {
-                    "$sum": {"$cond": [{"$lt": ["$points", 0]}, "$points", 0]}
-                },
-                "transaction_count": {"$sum": 1}
-            }}
+            {'$match': {'user_id': user_id}},
+            {
+                '$group': {
+                    '_id': None,
+                    'total_points': {'$sum': '$points'},
+                    'positive_points': {'$sum': {'$cond': [{'$gt': ['$points', 0]}, '$points', 0]}},
+                    'negative_points': {'$sum': {'$cond': [{'$lt': ['$points', 0]}, '$points', 0]}},
+                    'transaction_count': {'$sum': 1},
+                }
+            },
         ]
 
         result = await self.db.point_transactions.aggregate(pipeline).to_list(length=1)
 
         if not result:
             return {
-                "user_id": user_id,
-                "total_points": 0,
-                "level": 1,
-                "level_name": "Aprendiz de Seguridad",
-                "progress_to_next_level": {
-                    "current_level": 1,
-                    "next_level": 2,
-                    "points_needed": 500,
-                    "progress_percentage": 0.0
-                }
+                'user_id': user_id,
+                'total_points': 0,
+                'level': 1,
+                'level_name': 'Aprendiz de Seguridad',
+                'progress_to_next_level': {
+                    'current_level': 1,
+                    'next_level': 2,
+                    'points_needed': 500,
+                    'progress_percentage': 0.0,
+                },
             }
 
         stats = result[0]
-        total_points = stats["total_points"]
+        total_points = stats['total_points']
 
         # Calcular nivel y progreso
         level = self.point_calculator.calculate_user_level(total_points)
@@ -365,15 +352,15 @@ class RuleEngine:
         progress = self.point_calculator.calculate_progress_to_next_level(total_points)
 
         return {
-            "user_id": user_id,
-            "total_points": total_points,
-            "positive_points": stats["positive_points"],
-            "negative_points": stats["negative_points"],
-            "transaction_count": stats["transaction_count"],
-            "level": level,
-            "level_name": level_info["name"],
-            "level_perks": level_info["perks"],
-            "progress_to_next_level": progress
+            'user_id': user_id,
+            'total_points': total_points,
+            'positive_points': stats['positive_points'],
+            'negative_points': stats['negative_points'],
+            'transaction_count': stats['transaction_count'],
+            'level': level,
+            'level_name': level_info['name'],
+            'level_perks': level_info['perks'],
+            'progress_to_next_level': progress,
         }
 
 
@@ -381,11 +368,9 @@ class RuleEngine:
 # HELPER FUNCTION
 # ============================================================================
 
+
 async def process_remediation_verified(
-    db_client,
-    alert: dict[str, Any],
-    remediation: dict[str, Any],
-    rescan_result: dict[str, Any]
+    db_client, alert: dict[str, Any], remediation: dict[str, Any], rescan_result: dict[str, Any]
 ) -> dict[str, Any]:
     """
     Helper para procesar remediación verificada
@@ -401,10 +386,10 @@ async def process_remediation_verified(
     engine = RuleEngine(db_client)
 
     context = {
-        "Alert": alert,
-        "Remediation": remediation,
-        "RescanResult": rescan_result,
-        "current_time": datetime.utcnow()
+        'Alert': alert,
+        'Remediation': remediation,
+        'RescanResult': rescan_result,
+        'current_time': datetime.utcnow(),
     }
 
-    return await engine.process_event("rescan_completed", context)
+    return await engine.process_event('rescan_completed', context)

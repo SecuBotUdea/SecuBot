@@ -11,9 +11,9 @@ import os
 # ─── Required env vars ───────────────────────────────────────────────────────
 # Set a dummy MongoDB URI so Settings() can be instantiated during import.
 # Tests that actually need DB access must mock get_database() themselves.
-os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017")
-os.environ.setdefault("DATABASE_NAME", "secubot_test")
-os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault('MONGODB_URI', 'mongodb://localhost:27017')
+os.environ.setdefault('DATABASE_NAME', 'secubot_test')
+os.environ.setdefault('ENVIRONMENT', 'test')
 
 # ─── pytest-asyncio mode ─────────────────────────────────────────────────────
 # Already set to "auto" in pytest.ini; no fixture needed.

@@ -20,8 +20,7 @@ router = APIRouter()
 
 @router.post('/', response_model=SuccessResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    user_data: UserCreate, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
     Create a new user
@@ -47,10 +46,7 @@ async def create_user(
             data=UserResponse(**user),
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
 
 @router.get('/', response_model=PaginatedResponse[UserResponse])
@@ -71,11 +67,11 @@ async def list_users(
 
     # Obtener usuarios filtrados
     users = await service.list_users(
-        role=filters.get("role"),
-        team_id=filters.get("team_id"),
-        is_active=filters.get("is_active"),
+        role=filters.get('role'),
+        team_id=filters.get('team_id'),
+        is_active=filters.get('is_active'),
         limit=pagination.limit,
-        skip=pagination.skip
+        skip=pagination.skip,
     )
 
     # Total (usar db directamente para el count)
@@ -94,28 +90,20 @@ async def list_users(
 
 
 @router.get('/{username}', response_model=UserResponse)
-async def get_user(
-    username: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-) -> UserResponse:
+async def get_user(username: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> UserResponse:
     """Get a specific user by username"""
     service = get_user_service()
     user = await service.get_user_by_username(username)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
     return UserResponse(**user)
 
 
 @router.patch('/{username}', response_model=SuccessResponse[UserResponse])
 async def update_user(
-    username: str,
-    user_update: UserUpdate,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    username: str, user_update: UserUpdate, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
     Update a user
@@ -127,22 +115,16 @@ async def update_user(
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
     # Preparar datos para actualizar
     update_data = user_update.model_dump(exclude_none=True)
     if not update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='No fields to update'
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No fields to update')
 
     try:
         # Actualizar usando el user_id del documento existente
-        user_id = str(existing["_id"])
+        user_id = str(existing['_id'])
         updated_user = await service.update_user(user_id, **update_data)
 
         return SuccessResponse(
@@ -150,16 +132,12 @@ async def update_user(
             data=UserResponse(**updated_user),
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.delete('/{username}', response_model=SuccessResponse[None])
 async def delete_user(
-    username: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    username: str, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[None]:
     """
     Delete a user (soft delete)
@@ -172,31 +150,23 @@ async def delete_user(
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
     # Soft delete
-    user_id = str(existing["_id"])
+    user_id = str(existing['_id'])
     success = await service.delete_user(user_id)
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Failed to delete user'
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to delete user'
         )
 
-    return SuccessResponse(
-        message=f'User {username} deleted successfully',
-        data=None
-    )
+    return SuccessResponse(message=f'User {username} deleted successfully', data=None)
 
 
 @router.get('/{username}/stats', response_model=UserStatsResponse)
 async def get_user_stats(
-    username: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    username: str, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> UserStatsResponse:
     """
     Get gamification statistics for a user
@@ -213,10 +183,7 @@ async def get_user_stats(
     # Verificar que el usuario existe
     user = await service.get_user_by_username(username)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
     user_id = user.get('user_id') or username
 
@@ -254,8 +221,7 @@ async def get_user_stats(
 
 @router.get('/{username}/verify-email', response_model=SuccessResponse[UserResponse])
 async def verify_user_email(
-    username: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    username: str, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
     Verify a user's email address
@@ -265,25 +231,17 @@ async def verify_user_email(
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
-    user_id = str(existing["_id"])
+    user_id = str(existing['_id'])
     updated_user = await service.verify_email(user_id)
 
-    return SuccessResponse(
-        message='Email verified successfully',
-        data=UserResponse(**updated_user)
-    )
+    return SuccessResponse(message='Email verified successfully', data=UserResponse(**updated_user))
 
 
 @router.patch('/{username}/role', response_model=SuccessResponse[UserResponse])
 async def change_user_role(
-    username: str,
-    new_role: str,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    username: str, new_role: str, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> SuccessResponse[UserResponse]:
     """
     Change a user's role
@@ -295,21 +253,14 @@ async def change_user_role(
     # Verificar que el usuario existe
     existing = await service.get_user_by_username(username)
     if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
     try:
-        user_id = str(existing["_id"])
+        user_id = str(existing['_id'])
         updated_user = await service.change_role(user_id, new_role)
 
         return SuccessResponse(
-            message=f'Role changed to {new_role} successfully',
-            data=UserResponse(**updated_user)
+            message=f'Role changed to {new_role} successfully', data=UserResponse(**updated_user)
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e

@@ -32,7 +32,9 @@ async def on_ready() -> None:
 
 
 @bot.command(name='rescan')
-async def rescan_command(ctx: commands.Context, alert_id: str | None = None, user_id: str | None = None) -> None:
+async def rescan_command(
+    ctx: commands.Context, alert_id: str | None = None, user_id: str | None = None
+) -> None:
     """
     Ejecuta el flujo completo de re-verificación para una alerta (incluye gamificación).
 
@@ -75,8 +77,7 @@ async def rescan_command(ctx: commands.Context, alert_id: str | None = None, use
             return
         if alert_status not in ('open', 'reopened', 'verified_persists'):
             await ctx.send(
-                f'⚠️ La alerta `{alert_id}` tiene status `{alert_status}` '
-                'y no puede ser rescaneada.'
+                f'⚠️ La alerta `{alert_id}` tiene status `{alert_status}` y no puede ser rescaneada.'
             )
             return
 
@@ -134,9 +135,9 @@ async def rescan_command(ctx: commands.Context, alert_id: str | None = None, use
             points_awarded = sum(
                 p.get('points', 0) for p in gamification_result.get('points_awarded', [])
             )
-            penalties = abs(sum(
-                p.get('points', 0) for p in gamification_result.get('penalties_applied', [])
-            ))
+            penalties = abs(
+                sum(p.get('points', 0) for p in gamification_result.get('penalties_applied', []))
+            )
 
             if still_exists:
                 await ctx.send(
@@ -166,9 +167,7 @@ async def rescan_command(ctx: commands.Context, alert_id: str | None = None, use
 async def rescan_error(ctx: commands.Context, error: commands.CommandError) -> None:
     """Maneja errores del comando rescan"""
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(
-            '⚠️ Falta el `alert_id`.\nUso: `!rescan <alert_id>`'
-        )
+        await ctx.send('⚠️ Falta el `alert_id`.\nUso: `!rescan <alert_id>`')
     else:
         logger.error(f'Error en comando rescan: {type(error).__name__}: {error}')
         await ctx.send(f'❌ Error inesperado: {error}')
@@ -181,9 +180,7 @@ async def start_bot() -> None:
     """
     token = settings.discord_bot_token
     if not token:
-        logger.warning(
-            'DISCORD_BOT_TOKEN no configurado. El bot de Discord no se iniciará.'
-        )
+        logger.warning('DISCORD_BOT_TOKEN no configurado. El bot de Discord no se iniciará.')
         return
 
     try:

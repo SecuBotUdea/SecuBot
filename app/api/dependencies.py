@@ -1,4 +1,3 @@
-
 """
 API Dependencies - Reusable dependency functions for FastAPI endpoints
 """

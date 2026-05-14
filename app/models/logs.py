@@ -7,16 +7,18 @@ from .base import BaseModelDB
 
 __all__ = ['AccessLog']
 
+
 class AccessLog(BaseModelDB):
     """
     Modelo para logs de acceso.
     """
-    user_id: str = Field(..., description="ID del usuario")
-    action: str = Field(..., description="Acción realizada")
-    ip_address: str = Field(..., description="Dirección IP")
-    user_agent: str | None = Field(None, description="Agente de usuario")
-    status: str = Field("success", description="Estado de la acción")
-    details: dict = Field(default_factory=dict, description="Detalles adicionales")
+
+    user_id: str = Field(..., description='ID del usuario')
+    action: str = Field(..., description='Acción realizada')
+    ip_address: str = Field(..., description='Dirección IP')
+    user_agent: str | None = Field(None, description='Agente de usuario')
+    status: str = Field('success', description='Estado de la acción')
+    details: dict = Field(default_factory=dict, description='Detalles adicionales')
 
     # timestamp puede usar created_at de BaseModelDB
 

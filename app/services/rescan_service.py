@@ -28,7 +28,7 @@ class RescanResult:
         local_reopen_count: int,
         normalizer_reopen_count: int,
         scan_timestamp: datetime,
-        metadata: dict[str, Any] | None = None
+        metadata: dict[str, Any] | None = None,
     ):
         self.alert_id = alert_id
         self.still_exists = still_exists  # ¿La vulnerabilidad aún existe?
@@ -40,16 +40,16 @@ class RescanResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "alert_id": self.alert_id,
-            "still_exists": self.still_exists,
+            'alert_id': self.alert_id,
+            'still_exists': self.still_exists,
             # "present" mirrors "still_exists" for compatibility with rules.yaml conditions
             # that reference "RescanResult.present"
-            "present": self.still_exists,
-            "reopen_count_changed": self.reopen_count_changed,
-            "local_reopen_count": self.local_reopen_count,
-            "normalizer_reopen_count": self.normalizer_reopen_count,
-            "scan_timestamp": self.scan_timestamp.isoformat(),
-            "metadata": self.metadata
+            'present': self.still_exists,
+            'reopen_count_changed': self.reopen_count_changed,
+            'local_reopen_count': self.local_reopen_count,
+            'normalizer_reopen_count': self.normalizer_reopen_count,
+            'scan_timestamp': self.scan_timestamp.isoformat(),
+            'metadata': self.metadata,
         }
 
 
@@ -71,10 +71,7 @@ class RescanService:
         self.normalizer_url = settings.normalizer_url
 
     async def check_alert_exists(
-        self,
-        alert_id: str,
-        local_reopen_count: int,
-        remediation_id: str | None = None
+        self, alert_id: str, local_reopen_count: int, remediation_id: str | None = None
     ) -> RescanResult:
         """
         Verifica si una alerta aún existe consultando el normalizador
@@ -93,15 +90,14 @@ class RescanService:
         """
         now = datetime.now(timezone.utc)
         rescan_id = self._generate_rescan_id()
-        url = f"{self.normalizer_url}/alerts/{alert_id}"
+        url = f'{self.normalizer_url}/alerts/{alert_id}'
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-
                     # Alerta no existe en el normalizador
                     if response.status == 404:
-                        logger.warning(f"Alert {alert_id} not found in normalizer")
+                        logger.warning(f'Alert {alert_id} not found in normalizer')
 
                         # Guardar rescan con status "alert_not_found"
                         await self._save_rescan(
@@ -109,12 +105,12 @@ class RescanService:
                             alert_id=alert_id,
                             remediation_id=remediation_id,
                             present=False,
-                            status="alert_not_found",
-                            scan_output="Alert not found in normalizer (404)",
-                            executed_at=now
+                            status='alert_not_found',
+                            scan_output='Alert not found in normalizer (404)',
+                            executed_at=now,
                         )
 
-                        raise Exception(f"Alert {alert_id} not found in normalizer")
+                        raise Exception(f'Alert {alert_id} not found in normalizer')
 
                     # Error del servidor
                     if response.status != 200:
@@ -126,16 +122,16 @@ class RescanService:
                             alert_id=alert_id,
                             remediation_id=remediation_id,
                             present=False,
-                            status="error",
-                            scan_output=f"Normalizer error {response.status}: {error_text}",
-                            executed_at=now
+                            status='error',
+                            scan_output=f'Normalizer error {response.status}: {error_text}',
+                            executed_at=now,
                         )
 
-                        raise Exception(f"Normalizer error {response.status}: {error_text}")
+                        raise Exception(f'Normalizer error {response.status}: {error_text}')
 
                     # Parsear respuesta
                     data = await response.json()
-                    normalizer_reopen_count = data.get("reopen_count", 0)
+                    normalizer_reopen_count = data.get('reopen_count', 0)
 
                     # LÓGICA CRÍTICA: Comparar reopen_count
                     reopen_count_changed = normalizer_reopen_count > local_reopen_count
@@ -143,16 +139,16 @@ class RescanService:
 
                     # Determinar status del rescan
                     if still_exists:
-                        status = "vulnerability_persists"
+                        status = 'vulnerability_persists'
                         logger.info(
-                            f"Alert {alert_id} REAPARECE: "
-                            f"local={local_reopen_count}, normalizer={normalizer_reopen_count}"
+                            f'Alert {alert_id} REAPARECE: '
+                            f'local={local_reopen_count}, normalizer={normalizer_reopen_count}'
                         )
                     else:
-                        status = "vulnerability_resolved"
+                        status = 'vulnerability_resolved'
                         logger.info(
-                            f"Alert {alert_id} REMEDIADA: "
-                            f"reopen_count={local_reopen_count} (sin cambios)"
+                            f'Alert {alert_id} REMEDIADA: '
+                            f'reopen_count={local_reopen_count} (sin cambios)'
                         )
 
                     # Guardar rescan exitoso
@@ -162,8 +158,8 @@ class RescanService:
                         remediation_id=remediation_id,
                         present=still_exists,
                         status=status,
-                        scan_output=f"Rescan completed. Reopen count: local={local_reopen_count}, normalizer={normalizer_reopen_count}",
-                        executed_at=now
+                        scan_output=f'Rescan completed. Reopen count: local={local_reopen_count}, normalizer={normalizer_reopen_count}',
+                        executed_at=now,
                     )
 
                     return RescanResult(
@@ -174,15 +170,15 @@ class RescanService:
                         normalizer_reopen_count=normalizer_reopen_count,
                         scan_timestamp=now,
                         metadata={
-                            "rescan_id": rescan_id,
-                            "http_status": 200,
-                            "reopen_count_delta": normalizer_reopen_count - local_reopen_count,
-                            "normalizer_data": data
-                        }
+                            'rescan_id': rescan_id,
+                            'http_status': 200,
+                            'reopen_count_delta': normalizer_reopen_count - local_reopen_count,
+                            'normalizer_data': data,
+                        },
                     )
 
         except aiohttp.ClientError as e:
-            logger.error(f"Network error checking alert {alert_id}: {e}")
+            logger.error(f'Network error checking alert {alert_id}: {e}')
 
             # Guardar rescan con error de red
             await self._save_rescan(
@@ -190,15 +186,15 @@ class RescanService:
                 alert_id=alert_id,
                 remediation_id=remediation_id,
                 present=False,
-                status="network_error",
-                scan_output=f"Failed to connect to normalizer: {str(e)}",
-                executed_at=now
+                status='network_error',
+                scan_output=f'Failed to connect to normalizer: {str(e)}',
+                executed_at=now,
             )
 
-            raise Exception(f"Failed to connect to normalizer: {e}") from e
+            raise Exception(f'Failed to connect to normalizer: {e}') from e
 
         except Exception as e:
-            logger.error(f"Error checking alert {alert_id}: {e}")
+            logger.error(f'Error checking alert {alert_id}: {e}')
             raise
 
     async def _save_rescan(
@@ -209,7 +205,7 @@ class RescanService:
         present: bool,
         status: str,
         scan_output: str,
-        executed_at: datetime
+        executed_at: datetime,
     ) -> dict[str, Any]:
         """
         Guardar resultado del rescan en MongoDB.
@@ -227,58 +223,64 @@ class RescanService:
             Dict con el rescan guardado
         """
         rescan_doc = {
-            "rescan_id": rescan_id,
-            "alert_id": alert_id,
-            "remediation_id": remediation_id or "",
-            "present": present,
-            "status": status,
-            "scan_output": scan_output,
-            "executed_at": executed_at
+            'rescan_id': rescan_id,
+            'alert_id': alert_id,
+            'remediation_id': remediation_id or '',
+            'present': present,
+            'status': status,
+            'scan_output': scan_output,
+            'executed_at': executed_at,
         }
 
         result = await self.collection.insert_one(rescan_doc)
-        rescan_doc["_id"] = str(result.inserted_id)
+        rescan_doc['_id'] = str(result.inserted_id)
 
-        logger.info(f"Rescan guardado: {rescan_id} - status={status}")
+        logger.info(f'Rescan guardado: {rescan_id} - status={status}')
 
         return rescan_doc
 
     async def get_rescan(self, rescan_id: str) -> dict[str, Any] | None:
         """Obtener un rescan por ID"""
-        rescan = await self.collection.find_one({"rescan_id": rescan_id})
+        rescan = await self.collection.find_one({'rescan_id': rescan_id})
         if rescan:
-            rescan["_id"] = str(rescan["_id"])
+            rescan['_id'] = str(rescan['_id'])
         return rescan
 
     async def get_rescans_by_alert(self, alert_id: str, limit: int = 50) -> list:
         """Obtener todos los rescans de una alerta"""
-        rescans = await self.collection.find(
-            {"alert_id": alert_id}
-        ).sort("executed_at", -1).limit(limit).to_list(length=limit)
+        rescans = (
+            await self.collection.find({'alert_id': alert_id})
+            .sort('executed_at', -1)
+            .limit(limit)
+            .to_list(length=limit)
+        )
 
         for rescan in rescans:
-            rescan["_id"] = str(rescan["_id"])
+            rescan['_id'] = str(rescan['_id'])
 
         return rescans
 
     async def get_rescans_by_remediation(self, remediation_id: str) -> list:
         """Obtener todos los rescans asociados a una remediación"""
-        rescans = await self.collection.find(
-            {"remediation_id": remediation_id}
-        ).sort("executed_at", -1).to_list(length=None)
+        rescans = (
+            await self.collection.find({'remediation_id': remediation_id})
+            .sort('executed_at', -1)
+            .to_list(length=None)
+        )
 
         for rescan in rescans:
-            rescan["_id"] = str(rescan["_id"])
+            rescan['_id'] = str(rescan['_id'])
 
         return rescans
 
     def _generate_rescan_id(self) -> str:
         """Generar ID único para rescan"""
-        return f"rescan_{uuid4().hex[:12]}"
+        return f'rescan_{uuid4().hex[:12]}'
 
 
 # Singleton
 _rescan_service = None
+
 
 def get_rescan_service() -> RescanService:
     """Obtener instancia única del servicio"""

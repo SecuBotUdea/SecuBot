@@ -8,7 +8,6 @@ Responsabilidades:
 - Validar que los puntos no caigan por debajo del mínimo configurado
 """
 
-
 from typing import Any
 
 
@@ -39,7 +38,7 @@ class PointCalculator:
         base_points: int,
         user_level_multiplier: float = 1.0,
         bonus_points: int = 0,
-        penalty_points: int = 0
+        penalty_points: int = 0,
     ) -> int:
         """
         Calcula puntos finales aplicando multiplicadores y bonus
@@ -69,10 +68,7 @@ class PointCalculator:
         return final_points
 
     def calculate_from_rule(
-        self,
-        rule_points: int,
-        user_level: int = 1,
-        additional_bonus: int = 0
+        self, rule_points: int, user_level: int = 1, additional_bonus: int = 0
     ) -> int:
         """
         Calcula puntos desde una regla aplicando multiplicador de nivel
@@ -87,9 +83,7 @@ class PointCalculator:
         """
         multiplier = self.get_level_multiplier(user_level)
         return self.calculate(
-            base_points=rule_points,
-            user_level_multiplier=multiplier,
-            bonus_points=additional_bonus
+            base_points=rule_points, user_level_multiplier=multiplier, bonus_points=additional_bonus
         )
 
     @staticmethod
@@ -105,11 +99,11 @@ class PointCalculator:
         """
         # Según rules.yaml progression_rules
         level_multipliers = {
-            1: 1.0,   # Aprendiz de Seguridad
-            2: 1.0,   # Vigilante del Código
-            3: 1.1,   # Guardián DevSecOps
-            4: 1.2,   # Centinela Élite
-            5: 1.5,   # Maestro de la Seguridad
+            1: 1.0,  # Aprendiz de Seguridad
+            2: 1.0,  # Vigilante del Código
+            3: 1.1,  # Guardián DevSecOps
+            4: 1.2,  # Centinela Élite
+            5: 1.5,  # Maestro de la Seguridad
         }
 
         return level_multipliers.get(user_level, 1.0)
@@ -149,48 +143,40 @@ class PointCalculator:
             Dict con name, min_points, max_points, perks
         """
         levels: dict[int, dict[str, Any]] = {
-            1: {
-                "name": "Aprendiz de Seguridad",
-                "min_points": 0,
-                "max_points": 499,
-                "perks": []
-            },
+            1: {'name': 'Aprendiz de Seguridad', 'min_points': 0, 'max_points': 499, 'perks': []},
             2: {
-                "name": "Vigilante del Código",
-                "min_points": 500,
-                "max_points": 1499,
-                "perks": ["Acceso a dashboard avanzado"]
+                'name': 'Vigilante del Código',
+                'min_points': 500,
+                'max_points': 1499,
+                'perks': ['Acceso a dashboard avanzado'],
             },
             3: {
-                "name": "Guardián DevSecOps",
-                "min_points": 1500,
-                "max_points": 3999,
-                "perks": [
-                    "Acceso a dashboard avanzado",
-                    "Multiplicador de puntos x1.1"
-                ]
+                'name': 'Guardián DevSecOps',
+                'min_points': 1500,
+                'max_points': 3999,
+                'perks': ['Acceso a dashboard avanzado', 'Multiplicador de puntos x1.1'],
             },
             4: {
-                "name": "Centinela Élite",
-                "min_points": 4000,
-                "max_points": 9999,
-                "perks": [
-                    "Acceso a dashboard avanzado",
-                    "Multiplicador de puntos x1.2",
-                    "Puede iniciar misiones de equipo"
-                ]
+                'name': 'Centinela Élite',
+                'min_points': 4000,
+                'max_points': 9999,
+                'perks': [
+                    'Acceso a dashboard avanzado',
+                    'Multiplicador de puntos x1.2',
+                    'Puede iniciar misiones de equipo',
+                ],
             },
             5: {
-                "name": "Maestro de la Seguridad",
-                "min_points": 10000,
-                "max_points": None,
-                "perks": [
-                    "Acceso a dashboard avanzado",
-                    "Multiplicador de puntos x1.5",
-                    "Puede iniciar misiones de equipo",
-                    "Reconocimiento en hall of fame"
-                ]
-            }
+                'name': 'Maestro de la Seguridad',
+                'min_points': 10000,
+                'max_points': None,
+                'perks': [
+                    'Acceso a dashboard avanzado',
+                    'Multiplicador de puntos x1.5',
+                    'Puede iniciar misiones de equipo',
+                    'Reconocimiento en hall of fame',
+                ],
+            },
         }
 
         return levels.get(level, levels[1])
@@ -212,23 +198,23 @@ class PointCalculator:
         if current_level == 5:
             # Nivel máximo alcanzado
             return {
-                "current_level": 5,
-                "next_level": None,
-                "points_needed": 0,
-                "progress_percentage": 100.0
+                'current_level': 5,
+                'next_level': None,
+                'points_needed': 0,
+                'progress_percentage': 100.0,
             }
 
         next_level_info = PointCalculator.get_level_info(current_level + 1)
-        points_needed = next_level_info["min_points"] - current_points
+        points_needed = next_level_info['min_points'] - current_points
 
         # Calcular porcentaje de progreso en el nivel actual
-        level_range = current_level_info["max_points"] - current_level_info["min_points"] + 1
-        points_in_current_level = current_points - current_level_info["min_points"]
+        level_range = current_level_info['max_points'] - current_level_info['min_points'] + 1
+        points_in_current_level = current_points - current_level_info['min_points']
         progress_percentage = (points_in_current_level / level_range) * 100
 
         return {
-            "current_level": current_level,
-            "next_level": current_level + 1,
-            "points_needed": points_needed,
-            "progress_percentage": round(progress_percentage, 2)
+            'current_level': current_level,
+            'next_level': current_level + 1,
+            'points_needed': points_needed,
+            'progress_percentage': round(progress_percentage, 2),
         }

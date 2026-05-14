@@ -26,16 +26,16 @@ router = APIRouter()
 
 class CreateRemediationRequest(BaseModel):
     """Request para marcar una alerta como resuelta"""
+
     alert_id: str
     user_id: str
     notes: str | None = None
     team_id: str | None = None
 
 
-@router.post("/", status_code=201)
+@router.post('/', status_code=201)
 async def create_remediation(
-    request: CreateRemediationRequest,
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    request: CreateRemediationRequest, db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> dict[str, Any]:
     """
     El usuario marca que ya remedió una alerta.
@@ -46,7 +46,7 @@ async def create_remediation(
     - Ejecuta el gamificador (puntos/penalizaciones)
     """
     try:
-        logger.info(f"🔵 Iniciando creación de remediación para alert_id={request.alert_id}")
+        logger.info(f'🔵 Iniciando creación de remediación para alert_id={request.alert_id}')
 
         # Obtener el servicio dentro de la función
         remediation_service = get_remediation_service()
@@ -55,18 +55,18 @@ async def create_remediation(
             alert_id=request.alert_id,
             user_id=request.user_id,
             notes=request.notes,
-            team_id=request.team_id
+            team_id=request.team_id,
         )
 
-        logger.info(f"✅ Remediación creada exitosamente: {result.get('remediation_id')}")
+        logger.info(f'✅ Remediación creada exitosamente: {result.get("remediation_id")}')
         return result
 
     except ValueError as e:
-        logger.warning(f"⚠️ Error de validación: {e}")
+        logger.warning(f'⚠️ Error de validación: {e}')
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     except Exception as e:
-        logger.error(f"❌ Error al crear remediación: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f'❌ Error al crear remediación: {type(e).__name__}: {e}', exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -143,9 +143,7 @@ async def update_remediation(
     # Prepare update data (exclude None values)
     update_data = remediation_update.model_dump(exclude_none=True)
     if not update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail='No fields to update'
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No fields to update')
 
     # Add updated_at timestamp
     update_data['updated_at'] = datetime.utcnow()

@@ -58,11 +58,11 @@ class RemediationService:
         self,
         alert_id: str,
         user_id: str,
-        remediation_type: str = "user_mark",
+        remediation_type: str = 'user_mark',
         notes: str | None = None,
         team_id: str | None = None,
         metadata: dict[str, Any] | None = None,
-        auto_trigger_rescan: bool = True
+        auto_trigger_rescan: bool = True,
     ) -> dict[str, Any]:
         """
         Registrar una remediación (usuario marca alerta como resuelta).
@@ -85,10 +85,10 @@ class RemediationService:
         # 1. Validar que la alerta existe
         alert = await self.alert_service.get_alert(alert_id)
         if not alert:
-            raise ValueError(f"Alerta {alert_id} no encontrada")
+            raise ValueError(f'Alerta {alert_id} no encontrada')
 
         # 2. Validar que la alerta está abierta
-        if alert["status"] not in ["open", "reopened", "verified_persists"]:
+        if alert['status'] not in ['open', 'reopened', 'verified_persists']:
             raise ValueError(
                 f"Alerta {alert_id} tiene status '{alert['status']}'. "
                 f"Solo se pueden remediar alertas con status 'open', 'reopened' o 'verified_persists'"
@@ -98,32 +98,32 @@ class RemediationService:
 
         # 3. Crear documento de remediación
         remediation_doc = {
-            "remediation_id": self._generate_remediation_id(),
-            "alert_id": alert_id,
-            "user_id": user_id,
-            "team_id": team_id,
-            "type": remediation_type,
-            "status": "pending",  # Esperando verificación
-            "action_ts": now,
-            "notes": notes or "",
-            "metadata": metadata or {},
-            "created_at": now,
-            "updated_at": now
+            'remediation_id': self._generate_remediation_id(),
+            'alert_id': alert_id,
+            'user_id': user_id,
+            'team_id': team_id,
+            'type': remediation_type,
+            'status': 'pending',  # Esperando verificación
+            'action_ts': now,
+            'notes': notes or '',
+            'metadata': metadata or {},
+            'created_at': now,
+            'updated_at': now,
         }
 
         # 4. Insertar en MongoDB
         result = await self.collection.insert_one(remediation_doc)
-        remediation_doc["_id"] = str(result.inserted_id)
+        remediation_doc['_id'] = str(result.inserted_id)
 
         # 5. Actualizar status de la alerta a "pending_verification"
         await self.alert_service.update_status(
             alert_id,
-            "pending_verification",
+            'pending_verification',
             event_metadata={
-                "remediation_id": remediation_doc["remediation_id"],
-                "user_id": user_id,
-                "type": remediation_type
-            }
+                'remediation_id': remediation_doc['remediation_id'],
+                'user_id': user_id,
+                'type': remediation_type,
+            },
         )
 
         # 6. Disparar rescan automático si está habilitado
@@ -132,33 +132,30 @@ class RemediationService:
                 # Usar RescanService para verificar si la vulnerabilidad aún existe
                 rescan_result = await self.rescan_service.check_alert_exists(
                     alert_id=alert_id,
-                    local_reopen_count=alert.get("reopen_count", 0),
-                    remediation_id=remediation_doc["remediation_id"]
+                    local_reopen_count=alert.get('reopen_count', 0),
+                    remediation_id=remediation_doc['remediation_id'],
                 )
 
                 # 7. Procesar resultado del rescan (INVOCA GAMIFICATIONSERVICE)
                 gamification_result = await self.process_rescan_result(
-                    remediation_doc,
-                    rescan_result.to_dict()
+                    remediation_doc, rescan_result.to_dict()
                 )
 
-                remediation_doc["rescan_triggered"] = True
-                remediation_doc["rescan_result"] = rescan_result.to_dict()
-                remediation_doc["gamification_result"] = gamification_result
+                remediation_doc['rescan_triggered'] = True
+                remediation_doc['rescan_result'] = rescan_result.to_dict()
+                remediation_doc['gamification_result'] = gamification_result
 
             except Exception as e:
-                logger.error(f"Error al disparar rescan automático: {e}")
-                remediation_doc["rescan_triggered"] = False
-                remediation_doc["rescan_error"] = str(e)
+                logger.error(f'Error al disparar rescan automático: {e}')
+                remediation_doc['rescan_triggered'] = False
+                remediation_doc['rescan_error'] = str(e)
         else:
-            remediation_doc["rescan_triggered"] = False
+            remediation_doc['rescan_triggered'] = False
 
         return remediation_doc
 
     async def process_rescan_result(
-        self,
-        remediation: dict[str, Any],
-        rescan_result: dict[str, Any]
+        self, remediation: dict[str, Any], rescan_result: dict[str, Any]
     ) -> dict[str, Any]:
         """
         Procesar resultado de rescan e INVOCAR AL GAMIFICATIONSERVICE.
@@ -180,99 +177,97 @@ class RemediationService:
             Resultado del RuleEngine (puntos otorgados, badges, etc.)
         """
         # 1. Obtener alerta completa
-        alert = await self.alert_service.get_alert(remediation["alert_id"])
+        alert = await self.alert_service.get_alert(remediation['alert_id'])
         if not alert:
-            raise ValueError(f"Alerta {remediation['alert_id']} no encontrada")
+            raise ValueError(f'Alerta {remediation["alert_id"]} no encontrada')
 
         # 2. Construir contexto para el RuleEngine
         context = {
-            "Alert": alert,
-            "Remediation": remediation,
-            "RescanResult": rescan_result,
-            "current_time": datetime.now(timezone.utc)
+            'Alert': alert,
+            'Remediation': remediation,
+            'RescanResult': rescan_result,
+            'current_time': datetime.now(timezone.utc),
         }
 
         # 3. INVOCAR AL GAMIFICATIONSERVICE → RULEENGINE 🔥
-        result = await self.gamification_service.process_event("rescan_completed", context)
+        result = await self.gamification_service.process_event('rescan_completed', context)
 
         if not result or not isinstance(result, dict):
-            raise ValueError("GamificationService returned invalid result")
+            raise ValueError('GamificationService returned invalid result')
 
         # 4. Determinar nuevos estados según resultado del rescan
-        if rescan_result["still_exists"]:
+        if rescan_result['still_exists']:
             # Vulnerabilidad AÚN EXISTE = Falsa remediación
-            new_remediation_status = "failed_verification"
-            new_alert_status = "verified_persists"
+            new_remediation_status = 'failed_verification'
+            new_alert_status = 'verified_persists'
         else:
             # Vulnerabilidad NO EXISTE = Remediación exitosa
-            new_remediation_status = "verified_success"
-            new_alert_status = "verified_resolved"
+            new_remediation_status = 'verified_success'
+            new_alert_status = 'verified_resolved'
 
         # 5. Actualizar remediación
         await self.collection.update_one(
-            {"remediation_id": remediation["remediation_id"]},
+            {'remediation_id': remediation['remediation_id']},
             {
-                "$set": {
-                    "status": new_remediation_status,
-                    "verification_ts": datetime.now(timezone.utc),
-                    "rescan_result": rescan_result,
-                    "gamification_result": {
-                        "rules_triggered": result["rules_triggered"],
-                        "points_awarded": result["points_awarded"],
-                        "penalties_applied": result["penalties_applied"],
-                        "badges_awarded": result["badges_awarded"]
+                '$set': {
+                    'status': new_remediation_status,
+                    'verification_ts': datetime.now(timezone.utc),
+                    'rescan_result': rescan_result,
+                    'gamification_result': {
+                        'rules_triggered': result['rules_triggered'],
+                        'points_awarded': result['points_awarded'],
+                        'penalties_applied': result['penalties_applied'],
+                        'badges_awarded': result['badges_awarded'],
                     },
-                    "updated_at": datetime.now(timezone.utc)
+                    'updated_at': datetime.now(timezone.utc),
                 }
-            }
+            },
         )
 
         # 6. Actualizar alerta
         await self.alert_service.update_status(
-            alert["alert_id"],
+            alert['alert_id'],
             new_alert_status,
             event_metadata={
-                "remediation_id": remediation["remediation_id"],
-                "still_exists": rescan_result["still_exists"],
-                "reopen_count_changed": rescan_result["reopen_count_changed"],
-                "rules_triggered": result["rules_triggered"]
-            }
+                'remediation_id': remediation['remediation_id'],
+                'still_exists': rescan_result['still_exists'],
+                'reopen_count_changed': rescan_result['reopen_count_changed'],
+                'rules_triggered': result['rules_triggered'],
+            },
         )
 
         # 7. Si la vulnerabilidad reapareció, disparar evento alert_reopened para PEN-003
-        if rescan_result.get("reopen_count_changed"):
+        if rescan_result.get('reopen_count_changed'):
             try:
-                updated_alert = await self.alert_service.get_alert(alert["alert_id"])
+                updated_alert = await self.alert_service.get_alert(alert['alert_id'])
                 reopened_context = {
-                    "Alert": updated_alert or alert,
-                    "Remediation": remediation,
-                    "RescanResult": rescan_result,
-                    "current_time": datetime.now(timezone.utc),
+                    'Alert': updated_alert or alert,
+                    'Remediation': remediation,
+                    'RescanResult': rescan_result,
+                    'current_time': datetime.now(timezone.utc),
                 }
-                await self.gamification_service.process_event("alert_reopened", reopened_context)
-                logger.info(
-                    f"Evento alert_reopened disparado para alerta {alert['alert_id']}"
-                )
+                await self.gamification_service.process_event('alert_reopened', reopened_context)
+                logger.info(f'Evento alert_reopened disparado para alerta {alert["alert_id"]}')
             except Exception as e:
-                logger.error(f"Error disparando evento alert_reopened: {e}")
+                logger.error(f'Error disparando evento alert_reopened: {e}')
 
         # 8. Notificar a Discord el resultado de la remediación
         await self._send_remediation_notification(alert, remediation, rescan_result, result)
 
         logger.info(
-            f"Remediación {remediation['remediation_id']} procesada: "
-            f"status={new_remediation_status}, "
-            f"rules_triggered={result['rules_triggered']}, "
-            f"points_awarded={len(result['points_awarded'])}"
+            f'Remediación {remediation["remediation_id"]} procesada: '
+            f'status={new_remediation_status}, '
+            f'rules_triggered={result["rules_triggered"]}, '
+            f'points_awarded={len(result["points_awarded"])}'
         )
 
         return result
 
     async def get_remediation(self, remediation_id: str) -> dict[str, Any] | None:
         """Obtener una remediación por ID"""
-        remediation = await self.collection.find_one({"remediation_id": remediation_id})
+        remediation = await self.collection.find_one({'remediation_id': remediation_id})
         if remediation:
-            remediation["_id"] = str(remediation["_id"])
+            remediation['_id'] = str(remediation['_id'])
         return remediation
 
     async def get_remediations_by_alert(self, alert_id: str) -> list[dict[str, Any]]:
@@ -280,30 +275,34 @@ class RemediationService:
         Obtener todas las remediaciones de una alerta.
         Útil para ver historial de intentos.
         """
-        remediations = await self.collection.find(
-            {"alert_id": alert_id}
-        ).sort("action_ts", -1).to_list(length=None)
+        remediations = (
+            await self.collection.find({'alert_id': alert_id})
+            .sort('action_ts', -1)
+            .to_list(length=None)
+        )
 
         for rem in remediations:
-            rem["_id"] = str(rem["_id"])
+            rem['_id'] = str(rem['_id'])
 
         return remediations
 
     async def get_remediations_by_user(
-        self,
-        user_id: str,
-        status: str | None = None,
-        limit: int = 50
+        self, user_id: str, status: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
         """Obtener remediaciones de un usuario"""
-        query = {"user_id": user_id}
+        query = {'user_id': user_id}
         if status:
-            query["status"] = status
+            query['status'] = status
 
-        remediations = await self.collection.find(query).sort("action_ts", -1).limit(limit).to_list(length=limit)
+        remediations = (
+            await self.collection.find(query)
+            .sort('action_ts', -1)
+            .limit(limit)
+            .to_list(length=limit)
+        )
 
         for rem in remediations:
-            rem["_id"] = str(rem["_id"])
+            rem['_id'] = str(rem['_id'])
 
         return remediations
 
@@ -312,19 +311,20 @@ class RemediationService:
         Obtener remediaciones pendientes de verificación.
         Útil para el timeout checker.
         """
-        remediations = await self.collection.find(
-            {"status": "pending"}
-        ).sort("action_ts", 1).limit(limit).to_list(length=limit)
+        remediations = (
+            await self.collection.find({'status': 'pending'})
+            .sort('action_ts', 1)
+            .limit(limit)
+            .to_list(length=limit)
+        )
 
         for rem in remediations:
-            rem["_id"] = str(rem["_id"])
+            rem['_id'] = str(rem['_id'])
 
         return remediations
 
     async def trigger_rescan_for_remediation(
-        self,
-        remediation_id: str,
-        triggered_by: str | None = None
+        self, remediation_id: str, triggered_by: str | None = None
     ) -> dict[str, Any]:
         """
         Disparar rescan manualmente para una remediación existente.
@@ -338,17 +338,16 @@ class RemediationService:
         """
         remediation = await self.get_remediation(remediation_id)
         if not remediation:
-            raise ValueError(f"Remediación {remediation_id} no encontrada")
+            raise ValueError(f'Remediación {remediation_id} no encontrada')
 
         # Obtener alerta para acceder al reopen_count
-        alert = await self.alert_service.get_alert(remediation["alert_id"])
+        alert = await self.alert_service.get_alert(remediation['alert_id'])
         if not alert:
-            raise ValueError(f"Alerta {remediation['alert_id']} no encontrada")
+            raise ValueError(f'Alerta {remediation["alert_id"]} no encontrada')
 
         # Disparar rescan usando RescanService
         rescan_result = await self.rescan_service.check_alert_exists(
-            alert_id=alert["alert_id"],
-            local_reopen_count=alert.get("reopen_count", 0)
+            alert_id=alert['alert_id'], local_reopen_count=alert.get('reopen_count', 0)
         )
 
         # Procesar resultado con GamificationService
@@ -358,18 +357,16 @@ class RemediationService:
         """Obtener estadísticas de remediaciones"""
         pipeline = [
             {
-                "$group": {
-                    "_id": None,
-                    "total": {"$sum": 1},
-                    "pending": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}
+                '$group': {
+                    '_id': None,
+                    'total': {'$sum': 1},
+                    'pending': {'$sum': {'$cond': [{'$eq': ['$status', 'pending']}, 1, 0]}},
+                    'verified_success': {
+                        '$sum': {'$cond': [{'$eq': ['$status', 'verified_success']}, 1, 0]}
                     },
-                    "verified_success": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "verified_success"]}, 1, 0]}
+                    'failed_verification': {
+                        '$sum': {'$cond': [{'$eq': ['$status', 'failed_verification']}, 1, 0]}
                     },
-                    "failed_verification": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "failed_verification"]}, 1, 0]}
-                    }
                 }
             }
         ]
@@ -378,35 +375,31 @@ class RemediationService:
 
         if result:
             stats = result[0]
-            stats.pop("_id", None)
+            stats.pop('_id', None)
 
             # Calcular tasas
-            total = stats["total"]
+            total = stats['total']
             if total > 0:
-                stats["success_rate"] = round(
-                    (stats["verified_success"] / total) * 100, 2
-                )
-                stats["failure_rate"] = round(
-                    (stats["failed_verification"] / total) * 100, 2
-                )
+                stats['success_rate'] = round((stats['verified_success'] / total) * 100, 2)
+                stats['failure_rate'] = round((stats['failed_verification'] / total) * 100, 2)
             else:
-                stats["success_rate"] = 0.0
-                stats["failure_rate"] = 0.0
+                stats['success_rate'] = 0.0
+                stats['failure_rate'] = 0.0
 
             return stats
 
         return {
-            "total": 0,
-            "pending": 0,
-            "verified_success": 0,
-            "failed_verification": 0,
-            "success_rate": 0.0,
-            "failure_rate": 0.0
+            'total': 0,
+            'pending': 0,
+            'verified_success': 0,
+            'failed_verification': 0,
+            'success_rate': 0.0,
+            'failure_rate': 0.0,
         }
 
     def _generate_remediation_id(self) -> str:
         """Generar ID único para remediación"""
-        return f"rem_{uuid4().hex[:12]}"
+        return f'rem_{uuid4().hex[:12]}'
 
     async def _send_remediation_notification(
         self,
@@ -422,19 +415,13 @@ class RemediationService:
         Los errores de notificación se logean pero no bloquean el flujo principal.
         """
         try:
-            alert_obj = Alert(**{k: v for k, v in alert.items() if k != "_id"})
-            remediation_obj = Remediation(
-                **{
-                    k: v
-                    for k, v in remediation.items()
-                    if k != "_id"
-                }
-            )
+            alert_obj = Alert(**{k: v for k, v in alert.items() if k != '_id'})
+            remediation_obj = Remediation(**{k: v for k, v in remediation.items() if k != '_id'})
 
-            if rescan_result.get("still_exists"):
+            if rescan_result.get('still_exists'):
                 # Penalización: vulnerabilidad persiste
                 penalty_points = sum(
-                    p.get("points", 0) for p in gamification_result.get("penalties_applied", [])
+                    p.get('points', 0) for p in gamification_result.get('penalties_applied', [])
                 )
                 await notification_service.notify_remediation_failed(
                     alert_obj, remediation_obj, penalty_points
@@ -442,13 +429,13 @@ class RemediationService:
             else:
                 # Recompensa: remediación exitosa
                 points_earned = sum(
-                    p.get("points", 0) for p in gamification_result.get("points_awarded", [])
+                    p.get('points', 0) for p in gamification_result.get('points_awarded', [])
                 )
                 await notification_service.notify_remediation_verified(
                     alert_obj, remediation_obj, points_earned
                 )
         except Exception as e:
-            logger.error(f"Error enviando notificación de remediación: {e}")
+            logger.error(f'Error enviando notificación de remediación: {e}')
 
 
 # Singleton global

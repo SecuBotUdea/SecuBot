@@ -6,7 +6,6 @@ Tareas programadas:
 - Cada domingo a las 00:00 UTC: actualizar snapshot de leaderboard semanal en DB
 """
 
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -97,5 +96,7 @@ def get_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
 
-    logger.info('Scheduler configured with 2 jobs: timeout_checker (hourly), leaderboard_snapshot (weekly).')
+    logger.info(
+        'Scheduler configured with 2 jobs: timeout_checker (hourly), leaderboard_snapshot (weekly).'
+    )
     return _scheduler

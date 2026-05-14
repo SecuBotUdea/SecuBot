@@ -21,7 +21,9 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for creating a new user"""
 
-    user_id: str | None = Field(None, min_length=3, max_length=100, description='Custom user ID (defaults to username)')
+    user_id: str | None = Field(
+        None, min_length=3, max_length=100, description='Custom user ID (defaults to username)'
+    )
     metadata: dict[str, Any] = Field(default_factory=dict, description='Additional user metadata')
 
 

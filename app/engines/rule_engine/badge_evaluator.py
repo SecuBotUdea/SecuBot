@@ -38,10 +38,7 @@ class BadgeEvaluator:
         self.db = db_client
 
     async def evaluate_user_badges(
-        self,
-        user_id: str,
-        team_id: str | None = None,
-        badge_rules: list[Any] | None = None
+        self, user_id: str, team_id: str | None = None, badge_rules: list[Any] | None = None
     ) -> list[dict[str, Any]]:
         """
         Evalúa todos los badges para un usuario
@@ -59,28 +56,26 @@ class BadgeEvaluator:
         # Si no se pasan badge_rules, obtenerlas del RuleLoader
         if badge_rules is None:
             from app.engines.rule_engine.loader import get_rule_loader
+
             loader = get_rule_loader()
             badge_rules = loader.get_all_active_badges()
 
         for badge in badge_rules:
             # Solo evaluar badges individuales (ignoramos team por ahora)
-            if badge.criteria.type != "individual":
+            if badge.criteria.type != 'individual':
                 continue
 
             # Verificar si el usuario ya tiene este badge
-            existing_award = await self.db.awards.find_one({
-                "badge_id": badge.badge_id,
-                "user_id": user_id
-            })
+            existing_award = await self.db.awards.find_one(
+                {'badge_id': badge.badge_id, 'user_id': user_id}
+            )
 
             if existing_award:
                 continue  # Ya tiene este badge
 
             # Evaluar criterios
             meets_criteria = await self.evaluate_badge_criteria(
-                badge=badge,
-                user_id=user_id,
-                team_id=team_id
+                badge=badge, user_id=user_id, team_id=team_id
             )
 
             if meets_criteria:
@@ -89,17 +84,14 @@ class BadgeEvaluator:
                     badge_id=badge.badge_id,
                     user_id=user_id,
                     team_id=team_id,
-                    evidence=[]  # TODO: capturar evidencia específica
+                    evidence=[],  # TODO: capturar evidencia específica
                 )
                 newly_awarded.append(award)
 
         return newly_awarded
 
     async def evaluate_badge_criteria(
-        self,
-        badge: Any,
-        user_id: str,
-        team_id: str | None = None
+        self, badge: Any, user_id: str, team_id: str | None = None
     ) -> bool:
         """
         Evalúa si un usuario cumple los criterios de un badge
@@ -118,34 +110,23 @@ class BadgeEvaluator:
         for condition_dict in criteria.conditions:
             # Las condiciones pueden ser: count, streak, distinct_count, sum
             for condition_type, condition_config in condition_dict.items():
-
-                if condition_type == "count":
+                if condition_type == 'count':
                     result = await self._evaluate_count_condition(
-                        condition_config,
-                        user_id,
-                        team_id
+                        condition_config, user_id, team_id
                     )
 
-                elif condition_type == "streak":
+                elif condition_type == 'streak':
                     result = await self._evaluate_streak_condition(
-                        condition_config,
-                        user_id,
-                        team_id
+                        condition_config, user_id, team_id
                     )
 
-                elif condition_type == "distinct_count":
+                elif condition_type == 'distinct_count':
                     result = await self._evaluate_distinct_count_condition(
-                        condition_config,
-                        user_id,
-                        team_id
+                        condition_config, user_id, team_id
                     )
 
-                elif condition_type == "sum":
-                    result = await self._evaluate_sum_condition(
-                        condition_config,
-                        user_id,
-                        team_id
-                    )
+                elif condition_type == 'sum':
+                    result = await self._evaluate_sum_condition(condition_config, user_id, team_id)
 
                 else:
                     result = False
@@ -157,10 +138,7 @@ class BadgeEvaluator:
         return True
 
     async def _evaluate_count_condition(
-        self,
-        condition: Any,
-        user_id: str,
-        team_id: str | None
+        self, condition: Any, user_id: str, team_id: str | None
     ) -> bool:
         """
         Evalúa condición de tipo COUNT
@@ -194,10 +172,7 @@ class BadgeEvaluator:
         return self._compare_values(count, operator, threshold)
 
     async def _evaluate_streak_condition(
-        self,
-        condition: Any,
-        user_id: str,
-        team_id: str | None
+        self, condition: Any, user_id: str, team_id: str | None
     ) -> bool:
         """
         Evalúa condición de tipo STREAK (días consecutivos)
@@ -226,10 +201,7 @@ class BadgeEvaluator:
             day_start = today - timedelta(days=day_offset)
             day_end = day_start + timedelta(days=1)
 
-            day_query = {
-                **base_query,
-                "timestamp": {"$gte": day_start, "$lt": day_end}
-            }
+            day_query = {**base_query, 'timestamp': {'$gte': day_start, '$lt': day_end}}
 
             count = await collection.count_documents(day_query)
 
@@ -239,10 +211,7 @@ class BadgeEvaluator:
         return True
 
     async def _evaluate_distinct_count_condition(
-        self,
-        condition: Any,
-        user_id: str,
-        team_id: str | None
+        self, condition: Any, user_id: str, team_id: str | None
     ) -> bool:
         """
         Evalúa condición de tipo DISTINCT_COUNT
@@ -271,10 +240,7 @@ class BadgeEvaluator:
         return self._compare_values(count, operator, threshold)
 
     async def _evaluate_sum_condition(
-        self,
-        condition: Any,
-        user_id: str,
-        team_id: str | None
+        self, condition: Any, user_id: str, team_id: str | None
     ) -> bool:
         """
         Evalúa condición de tipo SUM
@@ -297,22 +263,15 @@ class BadgeEvaluator:
         collection = self._get_collection(entity)
 
         # Agregar suma usando pipeline
-        pipeline = [
-            {"$match": query},
-            {"$group": {"_id": None, "total": {"$sum": f"${field}"}}}
-        ]
+        pipeline = [{'$match': query}, {'$group': {'_id': None, 'total': {'$sum': f'${field}'}}}]
 
         result = await collection.aggregate(pipeline).to_list(length=1)
-        total = result[0]["total"] if result else 0
+        total = result[0]['total'] if result else 0
 
         return self._compare_values(total, operator, threshold)
 
     async def award_badge(
-        self,
-        badge_id: str,
-        user_id: str,
-        team_id: str | None,
-        evidence: list[str]
+        self, badge_id: str, user_id: str, team_id: str | None, evidence: list[str]
     ) -> dict[str, Any]:
         """
         Otorga un badge a un usuario
@@ -327,13 +286,13 @@ class BadgeEvaluator:
             Award creado
         """
         award = {
-            "award_id": str(uuid4()),
-            "badge_id": badge_id,
-            "user_id": user_id,
-            "team_id": team_id,
-            "timestamp": datetime.utcnow(),
-            "evidence_refs": evidence,
-            "metadata": {}
+            'award_id': str(uuid4()),
+            'badge_id': badge_id,
+            'user_id': user_id,
+            'team_id': team_id,
+            'timestamp': datetime.utcnow(),
+            'evidence_refs': evidence,
+            'metadata': {},
         }
 
         await self.db.awards.insert_one(award)
@@ -341,10 +300,7 @@ class BadgeEvaluator:
         return award
 
     def _build_query_from_filters(
-        self,
-        filters: list[str],
-        user_id: str,
-        team_id: str | None
+        self, filters: list[str], user_id: str, team_id: str | None
     ) -> dict[str, Any]:
         """
         Construye query MongoDB desde lista de filtros
@@ -369,31 +325,31 @@ class BadgeEvaluator:
 
             field = parts[0]
             operator = parts[1]
-            value = " ".join(parts[2:])
+            value = ' '.join(parts[2:])
 
             # Resolver valores especiales
-            if value == "current_user":
+            if value == 'current_user':
                 value = user_id
-            elif value == "current_team":
+            elif value == 'current_team':
                 value = team_id
             else:
                 value = self._parse_value(value)
 
             # Convertir operador a MongoDB
-            if operator == "==":
+            if operator == '==':
                 query[field] = value
-            elif operator == "!=":
-                query[field] = {"$ne": value}
-            elif operator == ">":
-                query[field] = {"$gt": value}
-            elif operator == "<":
-                query[field] = {"$lt": value}
-            elif operator == ">=":
-                query[field] = {"$gte": value}
-            elif operator == "<=":
-                query[field] = {"$lte": value}
-            elif operator == "IN":
-                query[field] = {"$in": value if isinstance(value, list) else [value]}
+            elif operator == '!=':
+                query[field] = {'$ne': value}
+            elif operator == '>':
+                query[field] = {'$gt': value}
+            elif operator == '<':
+                query[field] = {'$lt': value}
+            elif operator == '>=':
+                query[field] = {'$gte': value}
+            elif operator == '<=':
+                query[field] = {'$lte': value}
+            elif operator == 'IN':
+                query[field] = {'$in': value if isinstance(value, list) else [value]}
 
         return query
 
@@ -406,9 +362,9 @@ class BadgeEvaluator:
             return value_str[1:-1]
 
         # Lista
-        if value_str.startswith("[") and value_str.endswith("]"):
-            items = value_str[1:-1].split(",")
-            return [item.strip().strip("'\"") for item in items]
+        if value_str.startswith('[') and value_str.endswith(']'):
+            items = value_str[1:-1].split(',')
+            return [item.strip().strip('\'"') for item in items]
 
         # Number
         try:
@@ -422,26 +378,26 @@ class BadgeEvaluator:
     def _get_collection(self, entity: str):
         """Obtiene colección MongoDB desde nombre de entidad"""
         entity_to_collection = {
-            "PointTxn": self.db.point_transactions,
-            "Alert": self.db.alerts,
-            "Remediation": self.db.remediations,
-            "RescanResult": self.db.rescan_results,
+            'PointTxn': self.db.point_transactions,
+            'Alert': self.db.alerts,
+            'Remediation': self.db.remediations,
+            'RescanResult': self.db.rescan_results,
         }
         return entity_to_collection.get(entity)
 
     def _compare_values(self, value: Any, operator: str, threshold: Any) -> bool:
         """Compara valores con operador"""
-        if operator == "==":
+        if operator == '==':
             return value == threshold
-        elif operator == "!=":
+        elif operator == '!=':
             return value != threshold
-        elif operator == ">":
+        elif operator == '>':
             return value > threshold
-        elif operator == "<":
+        elif operator == '<':
             return value < threshold
-        elif operator == ">=":
+        elif operator == '>=':
             return value >= threshold
-        elif operator == "<=":
+        elif operator == '<=':
             return value <= threshold
         else:
             return False

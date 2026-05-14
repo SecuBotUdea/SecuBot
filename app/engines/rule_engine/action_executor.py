@@ -45,7 +45,7 @@ class ActionExecutor:
         reason: str,
         evidence: list[str],
         context: dict[str, Any],
-        metadata: dict[str, Any] | None = None
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Ejecuta otorgamiento de puntos
@@ -65,18 +65,18 @@ class ActionExecutor:
         """
         # Construir transacción de puntos
         txn = {
-            "txn_id": str(uuid4()),
-            "user_id": user_id,
-            "team_id": team_id,
-            "rule_id": rule_id,
-            "alert_id": context.get("Alert", {}).get("alert_id") if "Alert" in context else None,
-            "points": points,
-            "reason": reason,
-            "timestamp": datetime.utcnow(),
-            "evidence_refs": self._resolve_evidence(evidence, context),
-            "penalty_reason": metadata.get("penalty_reason") if metadata else None,
-            "original_alert_status": metadata.get("original_alert_status") if metadata else None,
-            "metadata": metadata or {}
+            'txn_id': str(uuid4()),
+            'user_id': user_id,
+            'team_id': team_id,
+            'rule_id': rule_id,
+            'alert_id': context.get('Alert', {}).get('alert_id') if 'Alert' in context else None,
+            'points': points,
+            'reason': reason,
+            'timestamp': datetime.utcnow(),
+            'evidence_refs': self._resolve_evidence(evidence, context),
+            'penalty_reason': metadata.get('penalty_reason') if metadata else None,
+            'original_alert_status': metadata.get('original_alert_status') if metadata else None,
+            'metadata': metadata or {},
         }
 
         # Persistir en BD
@@ -86,16 +86,16 @@ class ActionExecutor:
         # (esto se manejará en el RuleEngine principal)
 
         return {
-            "txn_id": txn["txn_id"],
-            "points": points,
-            "user_id": user_id,
-            "team_id": team_id,
-            "rule_id": rule_id,
-            "reason": reason,
-            "timestamp": txn["timestamp"],
-            "evidence_refs": txn["evidence_refs"],
-            "alert_id": txn.get("alert_id"),
-            "inserted": bool(result.inserted_id)  # ✅ Confirmar inserción
+            'txn_id': txn['txn_id'],
+            'points': points,
+            'user_id': user_id,
+            'team_id': team_id,
+            'rule_id': rule_id,
+            'reason': reason,
+            'timestamp': txn['timestamp'],
+            'evidence_refs': txn['evidence_refs'],
+            'alert_id': txn.get('alert_id'),
+            'inserted': bool(result.inserted_id),  # ✅ Confirmar inserción
         }
 
     async def execute_penalty(
@@ -108,7 +108,7 @@ class ActionExecutor:
         penalty_reason: str,
         original_alert_status: str,
         evidence: list[str],
-        context: dict[str, Any]
+        context: dict[str, Any],
     ) -> dict[str, Any]:
         """
         Ejecuta penalización (puntos negativos)
@@ -128,8 +128,8 @@ class ActionExecutor:
             Dict con la transacción creada
         """
         metadata = {
-            "penalty_reason": penalty_reason,
-            "original_alert_status": original_alert_status
+            'penalty_reason': penalty_reason,
+            'original_alert_status': original_alert_status,
         }
 
         return await self.execute_point_award(
@@ -140,13 +140,11 @@ class ActionExecutor:
             reason=reason,
             evidence=evidence,
             context=context,
-            metadata=metadata
+            metadata=metadata,
         )
 
     async def execute_side_effects(
-        self,
-        side_effects: list[dict[str, Any]],
-        context: dict[str, Any]
+        self, side_effects: list[dict[str, Any]], context: dict[str, Any]
     ) -> list[dict[str, Any]]:
         """
         Ejecuta efectos secundarios definidos en una regla
@@ -161,24 +159,22 @@ class ActionExecutor:
         results = []
 
         for effect in side_effects:
-            if "update_alert" in effect:
-                result = await self._update_alert(effect["update_alert"], context)
-                results.append({"type": "update_alert", "result": result})
+            if 'update_alert' in effect:
+                result = await self._update_alert(effect['update_alert'], context)
+                results.append({'type': 'update_alert', 'result': result})
 
-            elif "update_remediation" in effect:
-                result = await self._update_remediation(effect["update_remediation"], context)
-                results.append({"type": "update_remediation", "result": result})
+            elif 'update_remediation' in effect:
+                result = await self._update_remediation(effect['update_remediation'], context)
+                results.append({'type': 'update_remediation', 'result': result})
 
-            elif "create_notification" in effect:
-                result = await self._create_notification(effect["create_notification"], context)
-                results.append({"type": "create_notification", "result": result})
+            elif 'create_notification' in effect:
+                result = await self._create_notification(effect['create_notification'], context)
+                results.append({'type': 'create_notification', 'result': result})
 
         return results
 
     async def _update_alert(
-        self,
-        update_config: dict[str, Any],
-        context: dict[str, Any]
+        self, update_config: dict[str, Any], context: dict[str, Any]
     ) -> dict[str, Any]:
         """
         Actualiza estado de una alerta
@@ -192,96 +188,78 @@ class ActionExecutor:
                 }
             context: Contexto con entidades
         """
-        alert_id = self._resolve_value(update_config.get("alert_id"), context)
-        new_status = update_config.get("new_status")
-        notes = update_config.get("notes", "")
+        alert_id = self._resolve_value(update_config.get('alert_id'), context)
+        new_status = update_config.get('new_status')
+        notes = update_config.get('notes', '')
 
-        update_data = {
-            "status": new_status,
-            "updated_at": datetime.utcnow()
-        }
+        update_data = {'status': new_status, 'updated_at': datetime.utcnow()}
 
         # Agregar nota a lifecycle_history si existe
         if notes:
-            lifecycle_entry = {
-                "status": new_status,
-                "timestamp": datetime.utcnow(),
-                "notes": notes
-            }
-            update_data["$push"] = {"lifecycle_history": lifecycle_entry}
+            lifecycle_entry = {'status': new_status, 'timestamp': datetime.utcnow(), 'notes': notes}
+            update_data['$push'] = {'lifecycle_history': lifecycle_entry}
 
         result = await self.db.alerts.update_one(
-            {"alert_id": alert_id},
-            {"$set": update_data} if "$push" not in update_data else {
-                "$set": {k: v for k, v in update_data.items() if k != "$push"},
-                **{"$push": update_data["$push"]}
-            }
+            {'alert_id': alert_id},
+            {'$set': update_data}
+            if '$push' not in update_data
+            else {
+                '$set': {k: v for k, v in update_data.items() if k != '$push'},
+                **{'$push': update_data['$push']},
+            },
         )
 
         return {
-            "alert_id": alert_id,
-            "matched": result.matched_count,
-            "modified": result.modified_count
+            'alert_id': alert_id,
+            'matched': result.matched_count,
+            'modified': result.modified_count,
         }
 
     async def _update_remediation(
-        self,
-        update_config: dict[str, Any],
-        context: dict[str, Any]
+        self, update_config: dict[str, Any], context: dict[str, Any]
     ) -> dict[str, Any]:
         """Actualiza estado de una remediación"""
-        remediation_id = self._resolve_value(update_config.get("remediation_id"), context)
-        new_status = update_config.get("new_status")
+        remediation_id = self._resolve_value(update_config.get('remediation_id'), context)
+        new_status = update_config.get('new_status')
 
         result = await self.db.remediations.update_one(
-            {"remediation_id": remediation_id},
-            {
-                "$set": {
-                    "status": new_status,
-                    "updated_at": datetime.utcnow()
-                }
-            }
+            {'remediation_id': remediation_id},
+            {'$set': {'status': new_status, 'updated_at': datetime.utcnow()}},
         )
 
         return {
-            "remediation_id": remediation_id,
-            "matched": result.matched_count,
-            "modified": result.modified_count
+            'remediation_id': remediation_id,
+            'matched': result.matched_count,
+            'modified': result.modified_count,
         }
 
     async def _create_notification(
-        self,
-        notification_config: dict[str, Any],
-        context: dict[str, Any]
+        self, notification_config: dict[str, Any], context: dict[str, Any]
     ) -> dict[str, Any]:
         """
         Crea una notificación (para ser procesada por NotificationService)
         """
-        target = self._resolve_value(notification_config.get("target"), context)
-        message = notification_config.get("message", "")
-        priority = notification_config.get("priority", "normal")
+        target = self._resolve_value(notification_config.get('target'), context)
+        message = notification_config.get('message', '')
+        priority = notification_config.get('priority', 'normal')
 
         notification = {
-            "notification_id": str(uuid4()),
-            "target_user_id": target,
-            "message": message,
-            "priority": priority,
-            "status": "pending",
-            "created_at": datetime.utcnow()
+            'notification_id': str(uuid4()),
+            'target_user_id': target,
+            'message': message,
+            'priority': priority,
+            'status': 'pending',
+            'created_at': datetime.utcnow(),
         }
 
         result = await self.db.notifications.insert_one(notification)
 
         return {
-            "notification_id": notification["notification_id"],
-            "inserted": bool(result.inserted_id)
+            'notification_id': notification['notification_id'],
+            'inserted': bool(result.inserted_id),
         }
 
-    def _resolve_evidence (
-        self,
-        evidence_list: list[str],
-        context: dict[str, Any]
-    ) -> list[str]:
+    def _resolve_evidence(self, evidence_list: list[str], context: dict[str, Any]) -> list[str]:
         """
         Resuelve referencias de evidencia desde el contexto
 
@@ -310,10 +288,10 @@ class ActionExecutor:
             return expr
 
         # Si no tiene punto, es un literal
-        if "." not in expr:
+        if '.' not in expr:
             return expr
 
-        parts = expr.split(".")
+        parts = expr.split('.')
         entity_name = parts[0]
 
         if entity_name not in context:

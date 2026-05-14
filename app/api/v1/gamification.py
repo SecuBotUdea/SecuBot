@@ -43,7 +43,9 @@ async def get_leaderboard(
         }
     except Exception as e:
         logger.error(f'Error getting leaderboard: {e}')
-        raise HTTPException(status_code=500, detail=f'Error al obtener leaderboard: {str(e)}') from e
+        raise HTTPException(
+            status_code=500, detail=f'Error al obtener leaderboard: {str(e)}'
+        ) from e
 
 
 @router.get('/users/{user_id}/balance', summary='Balance y nivel de un usuario')

@@ -9,6 +9,7 @@ from .base import BaseModelDB
 
 __all__ = ['Alert']
 
+
 class Alert(BaseModelDB):
     """
     Contrato de datos para la entidad Alert.
@@ -33,6 +34,7 @@ class Alert(BaseModelDB):
       - version: versión incremental del hallazgo
       - created_at / updated_at heredados
     """
+
     alert_id: str = Field(..., description='Identificador principal del hallazgo (PK).')
     signature: str = Field(..., description='Firma o hash del hallazgo.')
     source_id: str = Field(..., description='ID de la fuente que generó la alerta (FK).')
