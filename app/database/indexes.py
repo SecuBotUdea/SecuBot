@@ -135,6 +135,13 @@ async def create_indexes() -> None:
             name='idx_email_unique',
         )
 
+        await _safe_create_index(
+            db.users,
+            [('server_id', ASCENDING)],
+            'users.server_id',
+            name='idx_user_server_id',
+        )
+
         # ==========================================
         # AWARDS (Badges)
         # ==========================================
@@ -171,21 +178,29 @@ async def create_indexes() -> None:
         )
 
         # ==========================================
-        # DISCORD WEBHOOKS
+        # SERVERS (Discord)
         # ==========================================
         await _safe_create_index(
-            db.discord_webhooks,
-            [('guild_id', ASCENDING)],
-            'discord_webhooks.guild_id (unique)',
+            db.servers,
+            [('server_id', ASCENDING)],
+            'servers.server_id (unique)',
             unique=True,
-            name='idx_discord_guild_unique',
+            name='idx_server_id_unique',
         )
 
         await _safe_create_index(
-            db.discord_webhooks,
+            db.servers,
+            [('guild_id', ASCENDING)],
+            'servers.guild_id (unique)',
+            unique=True,
+            name='idx_server_guild_unique',
+        )
+
+        await _safe_create_index(
+            db.servers,
             [('active', ASCENDING), ('updated_at', DESCENDING)],
-            'discord_webhooks.active + updated_at',
-            name='idx_discord_active_updated',
+            'servers.active + updated_at',
+            name='idx_server_active_updated',
         )
 
         logger.info('🎉 Inicialización de índices completada')
@@ -209,9 +224,9 @@ async def drop_all_indexes() -> None:
             'remediations',
             'point_transactions',
             'users',
+            'servers',
             'awards',
             'rescan_results',
-            'discord_webhooks',
         ]
 
         for collection_name in collections:

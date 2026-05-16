@@ -12,6 +12,7 @@ def ensure_indexes(collection) -> None:
 
         # Índices para búsquedas comunes
         collection.create_index('role')
+        collection.create_index('server_id')
         collection.create_index('team_id')
         collection.create_index('is_active')
         collection.create_index('email_verified')
@@ -19,6 +20,7 @@ def ensure_indexes(collection) -> None:
 
         # Índices compuestos
         collection.create_index([('role', 1), ('is_active', 1)])
+        collection.create_index([('server_id', 1), ('is_active', 1)])
         collection.create_index([('team_id', 1), ('is_active', 1)])
 
     except Exception as e:
