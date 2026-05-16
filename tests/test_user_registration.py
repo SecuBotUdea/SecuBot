@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +27,7 @@ def _make_user_doc(
     username: str = 'testuser',
     email: str = 'test@example.com',
     role: str = 'developer',
+    server_id: str | None = None,
     user_id: str | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
@@ -38,6 +38,7 @@ def _make_user_doc(
         'email': email,
         'display_name': username,
         'role': role,
+        'server_id': server_id,
         'team_id': None,
         'metadata': {},
         'is_active': True,
@@ -136,25 +137,37 @@ class TestUserRegistrationService:
         )
         assert result['user_id'] == 'discord-123456'
 
-    # ── 4. Duplicate username raises ValueError ───────────────────────────────
+    # ── 4. server_id is persisted when provided ───────────────────────────────
+
+    async def test_server_id_is_stored(self):
+        col = _mock_collection()
+        result = await self._create(
+            col,
+            username='serveruser',
+            email='server@example.com',
+            server_id='guild-999',
+        )
+        assert result['server_id'] == 'guild-999'
+
+    # ── 5. Duplicate username raises ValueError ───────────────────────────────
 
     async def test_duplicate_username_raises(self):
         col = _mock_collection(username_exists=True)
-        with pytest.raises(ValueError, match="ya existe"):
+        with pytest.raises(ValueError, match='ya existe'):
             await self._create(col, username='taken', email='new@example.com')
 
-    # ── 5. Duplicate email raises ValueError ─────────────────────────────────
+    # ── 6. Duplicate email raises ValueError ─────────────────────────────────
 
     async def test_duplicate_email_raises(self):
         col = _mock_collection(email_exists=True)
-        with pytest.raises(ValueError, match="ya existe"):
+        with pytest.raises(ValueError, match='ya existe'):
             await self._create(col, username='newuser', email='taken@example.com')
 
-    # ── 6. Invalid role raises ValueError ────────────────────────────────────
+    # ── 7. Invalid role raises ValueError ────────────────────────────────────
 
     async def test_invalid_role_raises(self):
         col = _mock_collection()
-        with pytest.raises(ValueError, match="Rol inválido"):
+        with pytest.raises(ValueError, match='Rol inválido'):
             await self._create(
                 col,
                 username='baduser',
@@ -162,7 +175,7 @@ class TestUserRegistrationService:
                 role='member',  # not in allowed list
             )
 
-    # ── 7. Default role 'developer' passes validation ─────────────────────────
+    # ── 8. Default role 'developer' passes validation ─────────────────────────
 
     async def test_default_role_developer_is_valid(self):
         col = _mock_collection()
@@ -174,12 +187,12 @@ class TestUserRegistrationService:
         )
         assert result['role'] == 'developer'
 
-    # ── 8. Schema default 'developer' matches service validation ─────────────
+    # ── 9. Schema default 'developer' matches service validation ─────────────
 
     def test_schema_default_role_is_accepted_by_service(self):
         """The UserCreate schema default must be in the service's valid_roles list."""
         from app.schemas.user_schemas import UserCreate
-        from app.services.user_service import UserService
+        from app.services.user_service import VALID_USER_ROLES
 
         schema_default = UserCreate(
             username='xxx',
@@ -187,7 +200,6 @@ class TestUserRegistrationService:
             display_name='Test',
         ).role
 
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        assert schema_default in valid_roles, (
-            f"Schema default role '{schema_default}' not in service valid_roles {valid_roles}"
+        assert schema_default in VALID_USER_ROLES, (
+            f"Schema default role '{schema_default}' not in service valid_roles {VALID_USER_ROLES}"
         )

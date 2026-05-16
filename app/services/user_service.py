@@ -11,6 +11,8 @@ from bson import ObjectId
 
 from app.database.mongodb import get_database
 
+VALID_USER_ROLES = ['developer', 'team_lead', 'admin', 'super_admin']
+
 
 class UserService:
     """
@@ -33,6 +35,7 @@ class UserService:
         email: str,
         display_name: str | None = None,
         role: str = 'developer',
+        server_id: str | None = None,
         team_id: str | None = None,
         metadata: dict[str, Any] | None = None,
         user_id: str | None = None,
@@ -63,9 +66,8 @@ class UserService:
             raise ValueError(f"Email '{email}' ya existe")
 
         # Validar rol
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        if role not in valid_roles:
-            raise ValueError(f'Rol inválido. Valores permitidos: {valid_roles}')
+        if role not in VALID_USER_ROLES:
+            raise ValueError(f'Rol inválido. Valores permitidos: {VALID_USER_ROLES}')
 
         now = datetime.now(timezone.utc)
 
@@ -76,6 +78,7 @@ class UserService:
             'email': email,
             'display_name': display_name or username,
             'role': role,
+            'server_id': server_id,
             'team_id': team_id,
             'metadata': metadata or {},
             'is_active': True,
@@ -160,6 +163,7 @@ class UserService:
         allowed_fields = [
             'display_name',
             'role',
+            'server_id',
             'team_id',
             'metadata',
             'is_active',
@@ -210,6 +214,7 @@ class UserService:
     async def list_users(
         self,
         role: str | None = None,
+        server_id: str | None = None,
         team_id: str | None = None,
         is_active: bool | None = None,
         limit: int = 50,
@@ -225,6 +230,8 @@ class UserService:
 
         if role:
             query['role'] = role
+        if server_id:
+            query['server_id'] = server_id
         if team_id:
             query['team_id'] = team_id
         if is_active is not None:
@@ -274,9 +281,8 @@ class UserService:
         """
         Cambiar el rol de un usuario.
         """
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        if new_role not in valid_roles:
-            raise ValueError(f'Rol inválido. Valores permitidos: {valid_roles}')
+        if new_role not in VALID_USER_ROLES:
+            raise ValueError(f'Rol inválido. Valores permitidos: {VALID_USER_ROLES}')
 
         return await self.update_user(user_id, role=new_role)
 

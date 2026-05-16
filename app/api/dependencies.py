@@ -63,6 +63,7 @@ async def get_alert_filters(
 
 async def get_user_filters(
     role: str | None = Query(None, description='Filter by role'),
+    server_id: str | None = Query(None, description='Filter by Discord server (guild)'),
     team_id: str | None = Query(None, description='Filter by team'),
     is_active: bool | None = Query(None, description='Filter by active status'),
 ) -> dict:
@@ -74,6 +75,8 @@ async def get_user_filters(
     filters = {}
     if role:
         filters['role'] = role
+    if server_id:
+        filters['server_id'] = server_id
     if team_id:
         filters['team_id'] = team_id
     if is_active is not None:

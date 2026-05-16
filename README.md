@@ -187,10 +187,18 @@ Para mantener la API en Vercel y ejecutar el bot de Discord en un proceso persis
      ```
    - Variables requeridas en Render:
      - `DISCORD_BOT_TOKEN`
+      - `DISCORD_WEBHOOK_URL`
      - `MONGODB_URI`
      - `DATABASE_NAME`
      - `ENVIRONMENT=production`
+      - `LOG_LEVEL=INFO`
      - `DISCORD_NOTIFICATIONS_ENABLED=true`
+      - `DISCORD_OAUTH_CLIENT_ID`
+      - `DISCORD_OAUTH_CLIENT_SECRET`
+      - `DISCORD_OAUTH_REDIRECT_URI`
+      - `DISCORD_OAUTH_SCOPES=bot webhook.incoming`
+
+   - Si cambias `DISCORD_OAUTH_SCOPES` o `DISCORD_OAUTH_PERMISSIONS`, genera una nueva URL de invitación y vuelve a autorizar el bot en el servidor.
 
 3. **Riesgos en capa gratuita de Render**
    - Si el servicio entra en sleep (normalmente tras inactividad), el bot se desconecta y no escuchará `!rescan` hasta que el servicio despierte.
@@ -238,6 +246,7 @@ Para evitar configurar `DISCORD_WEBHOOK_URL` manualmente por cada servidor:
 2. Obtén la URL de instalación:
    - `GET /api/v1/discord/oauth/install-url`
 3. Autoriza la app en Discord con scope `webhook.incoming` (y `bot` si necesitas comandos).
+4. Solo reinvita el bot si cambian permisos, scopes o intents. Si solo cambia el webhook guardado en Mongo, no hace falta volver a invitarlo.
 4. Discord redirige al callback:
    - `GET /api/v1/discord/oauth/callback?code=...`
 5. SecuBot guarda el webhook en MongoDB por `guild_id` y lo usa automáticamente en notificaciones.

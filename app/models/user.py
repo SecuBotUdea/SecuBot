@@ -32,6 +32,7 @@ class User(BaseModelDB):
     display_name: str = Field(..., max_length=100, description='Nombre visible / para mostrar.')
     email: EmailStr = Field(..., description='Correo electrónico validado.')
     role: str = Field(default='member', description="Rol del usuario (ej. 'admin', 'member').")
+    server_id: str | None = Field(None, description='Referencia al servidor (guild) de Discord.')
     team_id: str | None = Field(None, description='Referencia a equipo (si aplica).')
     metadata: dict[str, Any] = Field(
         default_factory=dict, description='Objeto libre para datos adicionales.'

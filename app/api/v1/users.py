@@ -36,6 +36,7 @@ async def create_user(
             email=user_data.email,
             display_name=user_data.display_name,
             role=user_data.role,
+            server_id=user_data.server_id,
             team_id=user_data.team_id,
             metadata=user_data.metadata,
             user_id=user_data.user_id,
@@ -68,6 +69,7 @@ async def list_users(
     # Obtener usuarios filtrados
     users = await service.list_users(
         role=filters.get('role'),
+        server_id=filters.get('server_id'),
         team_id=filters.get('team_id'),
         is_active=filters.get('is_active'),
         limit=pagination.limit,

@@ -20,7 +20,9 @@ async def test_discord_webhook_service_resolves_url_by_guild():
         }
     )
     mock_db = MagicMock()
-    mock_db.discord_webhooks = mock_collection
+    mock_db.servers = mock_collection
+    mock_db.discord_webhooks = MagicMock()
+    mock_db.discord_webhooks.find_one = AsyncMock(return_value=None)
 
     with patch('app.services.discord_webhook_service.get_database', return_value=mock_db):
         service = DiscordWebhookService()

@@ -15,6 +15,7 @@ class UserBase(BaseModel):
     display_name: str = Field(..., max_length=100, description='Display name')
     email: EmailStr = Field(..., description='Email address')
     role: str = Field(default='developer', description='User role')
+    server_id: str | None = Field(None, description='Discord server (guild) reference')
     team_id: str | None = Field(None, description='Team reference')
 
 
@@ -33,6 +34,7 @@ class UserUpdate(BaseModel):
     display_name: str | None = Field(None, max_length=100, description='Display name')
     email: EmailStr | None = Field(None, description='Email address')
     role: str | None = Field(None, description='User role')
+    server_id: str | None = Field(None, description='Discord server (guild) reference')
     team_id: str | None = Field(None, description='Team reference')
     is_active: bool | None = Field(None, description='Active status')
     metadata: dict[str, Any] | None = Field(None, description='Additional metadata')
@@ -55,6 +57,7 @@ class UserListFilter(BaseModel):
     """Filters for listing users"""
 
     role: str | None = Field(None, description='Filter by role')
+    server_id: str | None = Field(None, description='Filter by Discord server (guild)')
     team_id: str | None = Field(None, description='Filter by team')
     is_active: bool | None = Field(None, description='Filter by active status')
 
