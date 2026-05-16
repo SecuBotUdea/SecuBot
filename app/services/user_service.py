@@ -33,6 +33,7 @@ class UserService:
         email: str,
         display_name: str | None = None,
         role: str = 'developer',
+        server_id: str | None = None,
         team_id: str | None = None,
         metadata: dict[str, Any] | None = None,
         user_id: str | None = None,
@@ -76,6 +77,7 @@ class UserService:
             'email': email,
             'display_name': display_name or username,
             'role': role,
+            'server_id': server_id,
             'team_id': team_id,
             'metadata': metadata or {},
             'is_active': True,
@@ -160,6 +162,7 @@ class UserService:
         allowed_fields = [
             'display_name',
             'role',
+            'server_id',
             'team_id',
             'metadata',
             'is_active',
@@ -210,6 +213,7 @@ class UserService:
     async def list_users(
         self,
         role: str | None = None,
+        server_id: str | None = None,
         team_id: str | None = None,
         is_active: bool | None = None,
         limit: int = 50,
@@ -225,6 +229,8 @@ class UserService:
 
         if role:
             query['role'] = role
+        if server_id:
+            query['server_id'] = server_id
         if team_id:
             query['team_id'] = team_id
         if is_active is not None:

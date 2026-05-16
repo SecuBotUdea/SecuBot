@@ -145,6 +145,7 @@ async def discord_oauth_callback(
     webhook_service = get_discord_webhook_service()
     stored = await webhook_service.upsert_webhook(
         {
+            'server_id': str(guild_id),
             'guild_id': str(guild_id),
             'guild_name': guild.get('name'),
             'channel_id': str(webhook.get('channel_id')) if webhook.get('channel_id') else None,
@@ -164,7 +165,8 @@ async def discord_oauth_callback(
 
     return {
         'success': True,
-        'message': f'Webhook registrado para guild {stored["guild_id"]}',
+        'message': f'Webhook registrado para servidor {stored["server_id"]}',
+        'server_id': stored['server_id'],
         'guild_id': stored['guild_id'],
         'channel_id': stored.get('channel_id'),
         'webhook_id': stored.get('webhook_id'),

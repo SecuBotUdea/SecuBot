@@ -13,24 +13,30 @@ class DiscordWebhookService:
 
     @property
     def collection(self):
+        return get_database().servers
+
+    @property
+    def legacy_collection(self):
         return get_database().discord_webhooks
 
     async def upsert_webhook(self, webhook_data: dict[str, Any]) -> dict[str, Any]:
-        """Crea o actualiza el webhook activo para un guild_id."""
+        """Crea o actualiza el webhook activo para un servidor/guild_id."""
         guild_id = webhook_data.get('guild_id')
         if not guild_id:
             raise ValueError('guild_id es requerido para guardar webhook')
+        server_id = webhook_data.get('server_id') or guild_id
 
         now = datetime.now(timezone.utc)
         data = {
             **webhook_data,
+            'server_id': str(server_id),
             'guild_id': str(guild_id),
             'active': webhook_data.get('active', True),
             'updated_at': now,
         }
 
         await self.collection.update_one(
-            {'guild_id': str(guild_id)},
+            {'server_id': str(server_id)},
             {
                 '$set': data,
                 '$setOnInsert': {'created_at': now},
@@ -40,7 +46,7 @@ class DiscordWebhookService:
 
         stored = cast(
             dict[str, Any] | None,
-            await self.collection.find_one({'guild_id': str(guild_id)}),
+            await self.collection.find_one({'server_id': str(server_id)}),
         )
         if not stored:
             raise ValueError(f'No se pudo persistir webhook para guild {guild_id}')
@@ -52,8 +58,21 @@ class DiscordWebhookService:
         """Obtiene webhook activo por guild_id."""
         webhook = cast(
             dict[str, Any] | None,
-            await self.collection.find_one({'guild_id': str(guild_id), 'active': True}),
+            await self.collection.find_one(
+                {
+                    '$or': [
+                        {'guild_id': str(guild_id)},
+                        {'server_id': str(guild_id)},
+                    ],
+                    'active': True,
+                }
+            ),
         )
+        if not webhook:
+            webhook = cast(
+                dict[str, Any] | None,
+                await self.legacy_collection.find_one({'guild_id': str(guild_id), 'active': True}),
+            )
         if webhook:
             webhook['_id'] = str(webhook['_id'])
         return webhook
@@ -76,6 +95,10 @@ class DiscordWebhookService:
         if reason:
             update_data['deactivated_reason'] = reason
         await self.collection.update_one(
+            {'$or': [{'guild_id': str(guild_id)}, {'server_id': str(guild_id)}]},
+            {'$set': update_data},
+        )
+        await self.legacy_collection.update_one(
             {'guild_id': str(guild_id)},
             {'$set': update_data},
         )
