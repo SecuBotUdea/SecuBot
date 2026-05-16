@@ -1,21 +1,35 @@
 services:
-  - type: web
-    name: secubot-service
-    runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    # Discord bot starts in app.main lifespan when DISCORD_BOT_TOKEN is configured.
-    # If token is not set, only the FastAPI API is started.
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
-    envVars:
-      - key: ENVIRONMENT
-        value: production
-      - key: DISCORD_NOTIFICATIONS_ENABLED
-        value: "true"
-      - key: MONGODB_URI
-        sync: false
-      - key: DATABASE_NAME
-        sync: false
-      - key: DISCORD_BOT_TOKEN
-        sync: false
+- type: web
+  name: secubot-service
+  runtime: python
+  plan: free
+  buildCommand: pip install --upgrade pip && pip install .
+  # Discord bot starts in app.main lifespan when DISCORD_BOT_TOKEN is configured.
+  # If token is not set, only the FastAPI API is started.
+  startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+  healthCheckPath: /health
+  envVars:
+  - key: ENVIRONMENT
+    value: production
+  - key: LOG_LEVEL
+    value: INFO
+  - key: DISCORD_NOTIFICATIONS_ENABLED
+    value: "true"
+  - key: MONGODB_URI
+    sync: false
+  - key: DATABASE_NAME
+    sync: false
+  - key: DISCORD_WEBHOOK_URL
+    sync: false
+  - key: DISCORD_BOT_TOKEN
+    sync: false
+  - key: DISCORD_OAUTH_CLIENT_ID
+    sync: false
+  - key: DISCORD_OAUTH_CLIENT_SECRET
+    sync: false
+  - key: DISCORD_OAUTH_REDIRECT_URI
+    sync: false
+  - key: DISCORD_OAUTH_SCOPES
+    value: bot webhook.incoming
+  - key: DISCORD_OAUTH_PERMISSIONS
+    value: "0"
