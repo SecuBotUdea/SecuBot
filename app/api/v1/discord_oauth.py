@@ -163,10 +163,12 @@ async def discord_oauth_callback(
         }
     )
 
+    server_identifier = stored.get('server_id') or stored.get('guild_id')
+
     return {
         'success': True,
-        'message': f'Webhook registrado para servidor {stored["server_id"]}',
-        'server_id': stored['server_id'],
+        'message': f'Webhook registrado para servidor {server_identifier}',
+        'server_id': server_identifier,
         'guild_id': stored['guild_id'],
         'channel_id': stored.get('channel_id'),
         'webhook_id': stored.get('webhook_id'),

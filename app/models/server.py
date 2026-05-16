@@ -22,5 +22,7 @@ class Server(BaseModelDB):
     server_id: str = Field(..., description='Primary business identifier (PK) del servidor.')
     guild_id: str = Field(..., description='Discord guild id asociado.')
     guild_name: str | None = Field(default=None, description='Nombre del servidor Discord.')
-    webhook_url: str | None = Field(default=None, description='Webhook incoming asociado al servidor.')
+    webhook_url: str | None = Field(
+        default=None, description='Webhook incoming asociado al servidor.'
+    )
     active: bool = Field(default=True, description='Estado activo del webhook del servidor.')

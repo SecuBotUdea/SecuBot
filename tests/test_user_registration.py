@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,21 +153,21 @@ class TestUserRegistrationService:
 
     async def test_duplicate_username_raises(self):
         col = _mock_collection(username_exists=True)
-        with pytest.raises(ValueError, match="ya existe"):
+        with pytest.raises(ValueError, match='ya existe'):
             await self._create(col, username='taken', email='new@example.com')
 
     # ── 6. Duplicate email raises ValueError ─────────────────────────────────
 
     async def test_duplicate_email_raises(self):
         col = _mock_collection(email_exists=True)
-        with pytest.raises(ValueError, match="ya existe"):
+        with pytest.raises(ValueError, match='ya existe'):
             await self._create(col, username='newuser', email='taken@example.com')
 
     # ── 7. Invalid role raises ValueError ────────────────────────────────────
 
     async def test_invalid_role_raises(self):
         col = _mock_collection()
-        with pytest.raises(ValueError, match="Rol inválido"):
+        with pytest.raises(ValueError, match='Rol inválido'):
             await self._create(
                 col,
                 username='baduser',
