@@ -192,6 +192,7 @@ class TestUserRegistrationService:
     def test_schema_default_role_is_accepted_by_service(self):
         """The UserCreate schema default must be in the service's valid_roles list."""
         from app.schemas.user_schemas import UserCreate
+        from app.services.user_service import VALID_USER_ROLES
 
         schema_default = UserCreate(
             username='xxx',
@@ -199,7 +200,6 @@ class TestUserRegistrationService:
             display_name='Test',
         ).role
 
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        assert schema_default in valid_roles, (
-            f"Schema default role '{schema_default}' not in service valid_roles {valid_roles}"
+        assert schema_default in VALID_USER_ROLES, (
+            f"Schema default role '{schema_default}' not in service valid_roles {VALID_USER_ROLES}"
         )

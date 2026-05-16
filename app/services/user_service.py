@@ -11,6 +11,8 @@ from bson import ObjectId
 
 from app.database.mongodb import get_database
 
+VALID_USER_ROLES = ['developer', 'team_lead', 'admin', 'super_admin']
+
 
 class UserService:
     """
@@ -64,9 +66,8 @@ class UserService:
             raise ValueError(f"Email '{email}' ya existe")
 
         # Validar rol
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        if role not in valid_roles:
-            raise ValueError(f'Rol inválido. Valores permitidos: {valid_roles}')
+        if role not in VALID_USER_ROLES:
+            raise ValueError(f'Rol inválido. Valores permitidos: {VALID_USER_ROLES}')
 
         now = datetime.now(timezone.utc)
 
@@ -280,9 +281,8 @@ class UserService:
         """
         Cambiar el rol de un usuario.
         """
-        valid_roles = ['developer', 'team_lead', 'admin', 'super_admin']
-        if new_role not in valid_roles:
-            raise ValueError(f'Rol inválido. Valores permitidos: {valid_roles}')
+        if new_role not in VALID_USER_ROLES:
+            raise ValueError(f'Rol inválido. Valores permitidos: {VALID_USER_ROLES}')
 
         return await self.update_user(user_id, role=new_role)
 

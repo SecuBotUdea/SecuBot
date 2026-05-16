@@ -19,6 +19,20 @@ class DiscordWebhookService:
     def legacy_collection(self):
         return get_database().discord_webhooks
 
+    @staticmethod
+    def _lookup_filter(server_or_guild_id: str) -> dict[str, Any]:
+        """
+        Filtro de compatibilidad durante migración:
+        permite resolver por server_id (nuevo) o guild_id (legacy).
+        """
+        lookup_id = str(server_or_guild_id)
+        return {
+            '$or': [
+                {'guild_id': lookup_id},
+                {'server_id': lookup_id},
+            ]
+        }
+
     async def upsert_webhook(self, webhook_data: dict[str, Any]) -> dict[str, Any]:
         """Crea o actualiza el webhook activo para un servidor/guild_id."""
         guild_id = webhook_data.get('guild_id')
@@ -55,15 +69,12 @@ class DiscordWebhookService:
         return stored
 
     async def get_webhook_by_guild_id(self, guild_id: str) -> dict[str, Any] | None:
-        """Obtiene webhook activo por guild_id."""
+        """Obtiene webhook activo por guild_id o server_id equivalente."""
         webhook = cast(
             dict[str, Any] | None,
             await self.collection.find_one(
                 {
-                    '$or': [
-                        {'guild_id': str(guild_id)},
-                        {'server_id': str(guild_id)},
-                    ],
+                    **self._lookup_filter(guild_id),
                     'active': True,
                 }
             ),
@@ -95,7 +106,7 @@ class DiscordWebhookService:
         if reason:
             update_data['deactivated_reason'] = reason
         await self.collection.update_one(
-            {'$or': [{'guild_id': str(guild_id)}, {'server_id': str(guild_id)}]},
+            self._lookup_filter(guild_id),
             {'$set': update_data},
         )
         await self.legacy_collection.update_one(
