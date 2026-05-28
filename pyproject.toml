@@ -85,7 +85,9 @@ select = [
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
 ]
+
 ignore = [
+
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
 ]
@@ -118,4 +120,6 @@ module = [
 ignore_missing_imports = true
 
 [tool.pyright]
+
 extraPaths = ["./"]
+
